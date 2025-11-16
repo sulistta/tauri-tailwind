@@ -49,7 +49,7 @@ export default function TabNavigation({
     }
 
     return (
-        <aside className="flex h-full w-64 flex-col border-r bg-gray-50 shadow-sm flex-shrink-0">
+        <aside className="flex h-full w-64 flex-col border-r bg-gray-50 shadow-sm shrink-0">
             <div className="border-b p-6 bg-white">
                 <h1 className="text-xl font-bold text-gray-900 transition-colors">
                     WhatsApp Automation

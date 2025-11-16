@@ -6,6 +6,7 @@ use tauri::path::BaseDirectory;
 use tokio::time::{sleep, Duration};
 
 /// Message event data received from WhatsApp
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct MessageEvent {
     pub from: String,
@@ -15,6 +16,7 @@ pub struct MessageEvent {
 }
 
 /// Group join event data
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct GroupJoinEvent {
     pub group_id: String,
@@ -22,6 +24,7 @@ pub struct GroupJoinEvent {
 }
 
 /// Check if a trigger matches the given event
+#[allow(dead_code)]
 pub fn matches_trigger(trigger: &AutomationTrigger, event: &TriggerEvent) -> bool {
     match (trigger, event) {
         (AutomationTrigger::OnMessage { filter }, TriggerEvent::Message(msg)) => {
@@ -40,6 +43,7 @@ pub fn matches_trigger(trigger: &AutomationTrigger, event: &TriggerEvent) -> boo
 }
 
 /// Check if a message matches the filter criteria
+#[allow(dead_code)]
 fn matches_message_filter(filter: Option<&MessageFilter>, msg: &MessageEvent) -> bool {
     if let Some(filter) = filter {
         // Check 'from' filter
@@ -63,6 +67,7 @@ fn matches_message_filter(filter: Option<&MessageFilter>, msg: &MessageEvent) ->
 }
 
 /// Trigger event types
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum TriggerEvent {
     Message(MessageEvent),
@@ -235,10 +240,12 @@ fn get_action_delay(action: &AutomationAction) -> Option<u64> {
 }
 
 /// Automation executor that manages running automations
+#[allow(dead_code)]
 pub struct AutomationExecutor {
     app_handle: AppHandle,
 }
 
+#[allow(dead_code)]
 impl AutomationExecutor {
     pub fn new(app_handle: AppHandle) -> Self {
         Self { app_handle }

@@ -11,12 +11,12 @@ export default function AuthenticatedApp() {
     }
 
     return (
-        <div className="flex h-screen">
+        <div className="flex h-screen overflow-hidden">
             <TabNavigation
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
             />
-            <main className="flex-1">
+            <main className="flex-1 overflow-y-auto">
                 <TabContent activeTab={activeTab} />
             </main>
         </div>
