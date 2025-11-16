@@ -33,11 +33,13 @@ export function useWhatsApp() {
         let unlistenQR: UnlistenFn | null = null
         let unlistenReady: UnlistenFn | null = null
         let unlistenDisconnected: UnlistenFn | null = null
+        let unlistenError: UnlistenFn | null = null
 
         const setupListeners = async () => {
             try {
                 // Listen for QR code events
                 unlistenQR = await listen<QRPayload>('whatsapp_qr', (event) => {
+                    console.log('QR code received')
                     setQrCode(event.payload.qr_base64)
                     setStatus('connecting')
                     setError(null)
@@ -47,6 +49,7 @@ export function useWhatsApp() {
                 unlistenReady = await listen<ReadyPayload>(
                     'whatsapp_ready',
                     (event) => {
+                        console.log('WhatsApp ready')
                         setStatus('connected')
                         setQrCode(null)
                         setPhoneNumber(event.payload.phone_number)
@@ -58,11 +61,25 @@ export function useWhatsApp() {
                 unlistenDisconnected = await listen(
                     'whatsapp_disconnected',
                     () => {
+                        console.log('WhatsApp disconnected')
                         setStatus('disconnected')
                         setQrCode(null)
                         setPhoneNumber(null)
                     }
                 )
+
+                // Listen for error events
+                unlistenError = await listen<{
+                    message: string
+                    error?: string
+                }>('whatsapp_error', (event) => {
+                    console.error('WhatsApp error:', event.payload)
+                    const errorMsg =
+                        event.payload.error || event.payload.message
+                    setError(errorMsg)
+                    setStatus('disconnected')
+                    showErrorToast(errorMsg, 'WhatsApp Error')
+                })
             } catch (err) {
                 const error = parseTauriError(err)
                 console.error(
@@ -82,6 +99,7 @@ export function useWhatsApp() {
             if (unlistenQR) unlistenQR()
             if (unlistenReady) unlistenReady()
             if (unlistenDisconnected) unlistenDisconnected()
+            if (unlistenError) unlistenError()
         }
     }, [])
 
