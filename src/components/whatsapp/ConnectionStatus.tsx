@@ -29,6 +29,7 @@ export default function ConnectionStatus({
                     animate: true
                 }
             case 'disconnected':
+            default:
                 return {
                     icon: XCircle,
                     text: 'Desconectado',

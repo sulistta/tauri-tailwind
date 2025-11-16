@@ -1,5 +1,3 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router'
 import { useWhatsAppContext } from '@/contexts/WhatsAppContext'
 import QRCodeViewer from '@/components/whatsapp/QRCodeViewer'
 import { Button } from '@/components/ui/button'
@@ -9,14 +7,6 @@ import { ErrorDisplay } from '@/components/shared/ErrorDisplay'
 export default function Connect() {
     const { status, qrCode, connect, error, isRecovering } =
         useWhatsAppContext()
-    const navigate = useNavigate()
-
-    // Automatic redirect to Dashboard on successful connection
-    useEffect(() => {
-        if (status === 'connected') {
-            navigate('/dashboard')
-        }
-    }, [status, navigate])
 
     const handleConnect = async () => {
         await connect()
@@ -69,9 +59,6 @@ export default function Connect() {
                             </div>
                             <p className="text-lg font-semibold text-green-600">
                                 Conectado ✔
-                            </p>
-                            <p className="text-sm text-gray-600">
-                                Redirecionando para o dashboard...
                             </p>
                         </div>
                     )}

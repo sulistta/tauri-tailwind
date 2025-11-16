@@ -346,4 +346,51 @@ impl WhatsAppClient {
         // Reinitialize
         self.initialize().await
     }
+
+    pub fn check_session_exists(&self) -> Result<bool, String> {
+        // Get the path to the session directory
+        let session_path = if cfg!(debug_assertions) {
+            // Development mode
+            let current = std::env::current_dir()
+                .map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+            // Check if we're already in src-tauri or in project root
+            if current.ends_with("src-tauri") {
+                current.join("whatsapp-node").join("session")
+            } else {
+                current
+                    .join("src-tauri")
+                    .join("whatsapp-node")
+                    .join("session")
+            }
+        } else {
+            // Production mode - use resource directory
+            let resource_path = self
+                .app_handle
+                .path()
+                .resource_dir()
+                .map_err(|e| format!("Failed to get resource directory: {}", e))?;
+            resource_path.join("whatsapp-node").join("session")
+        };
+
+        // Check if session directory exists and contains session data
+        if !session_path.exists() {
+            return Ok(false);
+        }
+
+        // Check for session subdirectory (whatsapp-web.js creates a nested session folder)
+        let session_data_path = session_path.join("session");
+        if !session_data_path.exists() {
+            return Ok(false);
+        }
+
+        // Check if the session directory has any files (indicating a saved session)
+        match std::fs::read_dir(&session_data_path) {
+            Ok(entries) => {
+                // If there are any entries, we consider the session to exist
+                Ok(entries.count() > 0)
+            }
+            Err(_) => Ok(false),
+        }
+    }
 }

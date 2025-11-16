@@ -9,6 +9,8 @@ interface WhatsAppContextType {
     error: string | null
     connect: () => Promise<void>
     isRecovering: boolean
+    isInitialized: boolean
+    checkSession: () => Promise<boolean>
 }
 
 const WhatsAppContext = createContext<WhatsAppContextType | undefined>(

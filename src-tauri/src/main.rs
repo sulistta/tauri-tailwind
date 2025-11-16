@@ -30,6 +30,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::check_session,
             commands::initialize_whatsapp,
             commands::get_groups,
             commands::extract_group_members,

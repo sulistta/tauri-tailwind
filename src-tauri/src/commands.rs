@@ -1,4 +1,4 @@
-use crate::whatsapp::{WhatsAppClient, GroupInfo, Participant, AdditionReport};
+use crate::whatsapp::{WhatsAppClient, GroupInfo, Participant, AdditionReport, SessionStatus};
 use crate::whatsapp::types::Automation;
 use crate::automation::{storage, executor};
 use crate::logging::{Logger, LogEntry, LogFilter, LogCategory};
@@ -9,6 +9,45 @@ use std::sync::Arc;
 pub struct AppState {
     pub whatsapp_client: Mutex<Option<WhatsAppClient>>,
     pub logger: Arc<Logger>,
+}
+
+#[tauri::command]
+pub async fn check_session(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<SessionStatus, String> {
+    state.logger.info(LogCategory::WhatsApp, "Checking for existing WhatsApp session".to_string()).await;
+    
+    // Create a temporary client instance to check session
+    let client = WhatsAppClient::new(app_handle.clone());
+    
+    match client.check_session_exists() {
+        Ok(exists) => {
+            if exists {
+                state.logger.info(LogCategory::WhatsApp, "Existing WhatsApp session found".to_string()).await;
+                // Note: We can't get the phone number without initializing the client
+                // The phone number will be available after the client connects
+                Ok(SessionStatus {
+                    exists: true,
+                    phone_number: None,
+                })
+            } else {
+                state.logger.info(LogCategory::WhatsApp, "No existing WhatsApp session found".to_string()).await;
+                Ok(SessionStatus {
+                    exists: false,
+                    phone_number: None,
+                })
+            }
+        }
+        Err(e) => {
+            state.logger.error(LogCategory::WhatsApp, format!("Failed to check session: {}", e)).await;
+            // On error, treat as no session exists
+            Ok(SessionStatus {
+                exists: false,
+                phone_number: None,
+            })
+        }
+    }
 }
 
 #[tauri::command]

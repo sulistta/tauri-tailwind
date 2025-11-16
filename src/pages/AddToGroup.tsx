@@ -20,6 +20,9 @@ export default function AddToGroup() {
     const [report, setReport] = useState<AdditionReport | null>(null)
     const [error, setError] = useState<string | null>(null)
 
+    // Filter only groups where user is admin
+    const adminGroups = groups.filter((group) => group.isAdmin)
+
     useEffect(() => {
         fetchGroups()
     }, [fetchGroups])
@@ -124,7 +127,7 @@ export default function AddToGroup() {
                     )}
 
                     <GroupSelector
-                        groups={groups}
+                        groups={adminGroups}
                         selectedGroupId={selectedGroupId}
                         onSelectGroup={setSelectedGroupId}
                         disabled={groupsLoading || isAdding}

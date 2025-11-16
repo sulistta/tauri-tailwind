@@ -126,10 +126,25 @@ client.on('loading_screen', (percent, message) => {
 /**
  * Command Handler
  * Listens for commands from Tauri via stdin
+ * Uses readline to handle line-by-line input properly
  */
-process.stdin.on('data', async (data) => {
+const readline = require('readline');
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+});
+
+rl.on('line', async (line) => {
     try {
-        const command = JSON.parse(data.toString().trim());
+        const trimmedLine = line.trim();
+        
+        // Skip empty lines
+        if (!trimmedLine) {
+            return;
+        }
+
+        const command = JSON.parse(trimmedLine);
 
         switch (command.type) {
             case 'get_groups':

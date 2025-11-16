@@ -60,3 +60,9 @@ pub enum AutomationAction {
     AddToGroup { group_id: String, numbers: Vec<String> },
     SaveToList { list_name: String, data: serde_json::Value },
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionStatus {
+    pub exists: bool,
+    pub phone_number: Option<String>,
+}
