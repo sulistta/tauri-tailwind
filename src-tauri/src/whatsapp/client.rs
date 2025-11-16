@@ -176,6 +176,33 @@ impl WhatsAppClient {
                     "whatsapp_message" => {
                         let _ = app_handle.emit("whatsapp_message", message.data);
                     }
+                    "groups_result" => {
+                        logger
+                            .info(
+                                crate::logging::LogCategory::WhatsApp,
+                                "Groups fetched successfully".to_string(),
+                            )
+                            .await;
+                        let _ = app_handle.emit("groups_response", message.data);
+                    }
+                    "members_result" => {
+                        logger
+                            .info(
+                                crate::logging::LogCategory::WhatsApp,
+                                "Members extracted successfully".to_string(),
+                            )
+                            .await;
+                        let _ = app_handle.emit("members_response", message.data);
+                    }
+                    "addition_result" => {
+                        logger
+                            .info(
+                                crate::logging::LogCategory::WhatsApp,
+                                "Users added to group".to_string(),
+                            )
+                            .await;
+                        let _ = app_handle.emit("addition_response", message.data);
+                    }
                     "automation_progress" => {
                         let _ = app_handle.emit("automation_progress", message.data);
                     }
@@ -200,6 +227,19 @@ impl WhatsAppClient {
                                 .await;
                         }
                         let _ = app_handle.emit("automation_error", message.data);
+                    }
+                    "command_error" => {
+                        if let Some(error_msg) =
+                            message.data.get("message").and_then(|m| m.as_str())
+                        {
+                            logger
+                                .error(
+                                    crate::logging::LogCategory::WhatsApp,
+                                    format!("Command error: {}", error_msg),
+                                )
+                                .await;
+                        }
+                        let _ = app_handle.emit("whatsapp_error", message.data);
                     }
                     _ => {
                         logger
@@ -226,6 +266,15 @@ impl WhatsAppClient {
                 "whatsapp_message" => {
                     let _ = app_handle.emit("whatsapp_message", message.data);
                 }
+                "groups_result" => {
+                    let _ = app_handle.emit("groups_response", message.data);
+                }
+                "members_result" => {
+                    let _ = app_handle.emit("members_response", message.data);
+                }
+                "addition_result" => {
+                    let _ = app_handle.emit("addition_response", message.data);
+                }
                 "automation_progress" => {
                     let _ = app_handle.emit("automation_progress", message.data);
                 }
@@ -234,6 +283,9 @@ impl WhatsAppClient {
                 }
                 "automation_error" => {
                     let _ = app_handle.emit("automation_error", message.data);
+                }
+                "command_error" => {
+                    let _ = app_handle.emit("whatsapp_error", message.data);
                 }
                 _ => {
                     eprintln!("Unknown event from Node.js: {}", message.event);

@@ -17,8 +17,8 @@ async function getGroups(client, sendToTauri) {
             .map(group => ({
                 id: group.id._serialized,
                 name: group.name,
-                participant_count: group.participants?.length || 0,
-                is_admin: group.participants?.some(
+                participantCount: group.participants?.length || 0,
+                isAdmin: group.participants?.some(
                     p => p.id._serialized === client.info.wid._serialized && p.isAdmin
                 ) || false
             }));

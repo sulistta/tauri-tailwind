@@ -24,15 +24,15 @@ async function extractMembers(client, sendToTauri, groupId) {
         // Extract participant information
         // Handle cases where participant names are unavailable (set to null)
         const participants = chat.participants.map(participant => ({
-            phone_number: participant.id.user,
+            phoneNumber: participant.id.user,
             name: participant.pushname || null,
-            is_admin: participant.isAdmin || false
+            isAdmin: participant.isAdmin || false
         }));
         
         // Send results back to Tauri
         sendToTauri('members_result', { 
             group_id: groupId,
-            participants 
+            members: participants 
         });
     } catch (error) {
         sendToTauri('command_error', {
