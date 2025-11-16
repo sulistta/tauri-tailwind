@@ -1,552 +1,456 @@
-# Design Document
+# Architecture Refactor Design Document
 
 ## Overview
 
-This design document outlines the architectural refactor of the WhatsApp Automation application to replace React Router with a tab-based navigation system, implement proper session initialization, and optimize authentication state management. The refactor aims to simplify the codebase, improve performance, and provide a better user experience by eliminating unnecessary re-authentication checks during navigation.
+This design document outlines the architectural changes needed to simplify the WhatsApp Automation application, eliminate duplicate initialization calls, and improve overall system reliability. The refactor focuses on creating a clear, linear initialization flow with proper state management and event handling.
 
 ## Architecture
 
-### Current Architecture Issues
+### Current Issues
 
-1. **React Router Overhead**: Using React Router for a single-window desktop app adds unnecessary complexity
-2. **Multiple Authentication Checks**: Each route change potentially triggers authentication verification
-3. **No Centralized Session Initialization**: Session checking happens reactively rather than proactively on startup
-4. **Component Remounting**: Route changes cause components to unmount/remount, losing state
+1. **Multiple Initialization Paths**: The app has several code paths that can trigger initialization:
+    - `useWhatsApp` hook on mount via `checkSession()`
+    - `AppShell` component checking session
+    - Connection recovery mechanism
+    - Manual connect button
 
-### New Architecture
+2. **Race Conditions**: Frontend and backend don't coordinate initialization state, leading to:
+    - Multiple simultaneous session checks
+    - Duplicate WhatsApp client spawning attempts
+    - Inconsistent state between layers
+
+3. **Event Handling Gaps**: Missing handlers for Node.js events like `client_initializing` and `whatsapp_loading`
+
+4. **Excessive Logging**: Routine operations logged at `info` level instead of `debug`
+
+### Proposed Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         App Entry                            │
-│                      (main.tsx)                              │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    App Component                             │
-│                  (app/index.tsx)                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │           WhatsAppProvider (Context)                 │   │
-│  │  - Manages authentication state globally             │   │
-│  │  - Performs session check on mount                   │   │
-│  │  - Provides status, connect, disconnect methods      │   │
-│  └──────────────────────────────────────────────────────┘   │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  AppShell Component                          │
-│               (components/AppShell.tsx)                      │
-│                                                              │
-│  ┌────────────────────────────────────────────────────┐     │
-│  │  Session Initialization Logic                      │     │
-│  │  - Shows loading on startup                        │     │
-│  │  - Checks for existing session                     │     │
-│  │  - Routes to Connect or Dashboard                  │     │
-│  └────────────────────────────────────────────────────┘     │
-│                                                              │
-│  IF authenticated:                                           │
-│  ┌────────────────────────────────────────────────────┐     │
-│  │         AuthenticatedApp                           │     │
-│  │  ┌──────────────────────────────────────────────┐  │     │
-│  │  │  TabNavigation (Sidebar with tabs)           │  │     │
-│  │  └──────────────────────────────────────────────┘  │     │
-│  │  ┌──────────────────────────────────────────────┐  │     │
-│  │  │  TabContent (Conditional rendering)          │  │     │
-│  │  │  - Dashboard                                 │  │     │
-│  │  │  - Automations                               │  │     │
-│  │  │  - Extract Users                             │  │     │
-│  │  │  - Add to Group                              │  │     │
-│  │  │  - Logs                                      │  │     │
-│  │  │  - Settings                                  │  │     │
-│  │  └──────────────────────────────────────────────┘  │     │
-│  └────────────────────────────────────────────────────┘     │
-│                                                              │
-│  ELSE:                                                       │
-│  ┌────────────────────────────────────────────────────┐     │
-│  │         ConnectPage                                │     │
-│  │  - QR Code display                                 │     │
-│  │  - Connection button                               │     │
-│  │  - Auto-redirect on success                        │     │
-│  └────────────────────────────────────────────────────┘     │
+│                         Frontend                             │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  useWhatsApp Hook (Simplified)                         │ │
+│  │  - Manages UI state only                               │ │
+│  │  - Listens to backend events                           │ │
+│  │  - Delegates operations to backend                     │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                           │                                  │
+│                           │ Tauri Commands & Events          │
+└───────────────────────────┼──────────────────────────────────┘
+                            │
+┌───────────────────────────┼──────────────────────────────────┐
+│                         Backend                              │
+│  ┌────────────────────────▼────────────────────────────────┐ │
+│  │  ConnectionManager (New)                                │ │
+│  │  - Single source of truth for connection state          │ │
+│  │  - Coordinates all initialization operations            │ │
+│  │  - Implements initialization guards                     │ │
+│  │  - Manages WhatsApp client lifecycle                    │ │
+│  └────────────────────────┬────────────────────────────────┘ │
+│                           │                                  │
+│  ┌────────────────────────▼────────────────────────────────┐ │
+│  │  WhatsAppClient (Refactored)                            │ │
+│  │  - Manages Node.js subprocess                           │ │
+│  │  - Handles all Node.js events                           │ │
+│  │  - Provides idempotent operations                       │ │
+│  └────────────────────────┬────────────────────────────────┘ │
+│                           │                                  │
+│                           │ stdin/stdout                     │
+│  ┌────────────────────────▼────────────────────────────────┐ │
+│  │  Node.js Process (whatsapp-web.js)                      │ │
+│  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Components and Interfaces
 
-### 1. Enhanced WhatsAppContext
+### 1. ConnectionManager (New Rust Module)
 
-**Location**: `src/contexts/WhatsAppContext.tsx`
-
-**Responsibilities**:
-
-- Manage global authentication state
-- Perform session check on initialization
-- Provide authentication methods (connect, disconnect)
-- Handle session expiration events
-- Emit state changes to all consumers
-
-**Interface**:
-
-```typescript
-interface WhatsAppContextType {
-    // State
-    status: WhatsAppStatus // 'disconnected' | 'connecting' | 'connected' | 'initializing'
-    qrCode: string | null
-    phoneNumber: string | null
-    error: string | null
-    isRecovering: boolean
-    isInitialized: boolean // NEW: Indicates if initial session check is complete
-
-    // Methods
-    connect: () => Promise<void>
-    disconnect: () => Promise<void>
-    checkSession: () => Promise<boolean> // NEW: Check for existing session
-}
-```
-
-**Key Changes**:
-
-- Add `isInitialized` flag to track if initial session check is complete
-- Add `initializing` status to WhatsAppStatus type
-- Add `checkSession()` method to verify existing sessions
-- Automatically call `checkSession()` on context mount
-
-### 2. AppShell Component
-
-**Location**: `src/components/AppShell.tsx`
-
-**Responsibilities**:
-
-- Handle application initialization flow
-- Display loading state during session check
-- Route between Connect and Authenticated views
-- Handle session expiration redirects
-
-**Props**: None (consumes WhatsAppContext)
-
-**Rendering Logic**:
-
-```typescript
-if (!isInitialized) {
-  return <LoadingScreen message="Verificando sessão..." />
-}
-
-if (status === 'connected') {
-  return <AuthenticatedApp />
-}
-
-return <ConnectPage />
-```
-
-### 3. AuthenticatedApp Component
-
-**Location**: `src/components/AuthenticatedApp.tsx`
-
-**Responsibilities**:
-
-- Manage tab-based navigation state
-- Render sidebar with tab navigation
-- Conditionally render active tab content
-- Preserve component state across tab switches
+**Purpose**: Centralized connection state management and initialization coordination.
 
 **State**:
 
-```typescript
-interface AuthenticatedAppState {
-    activeTab: TabId
+```rust
+pub struct ConnectionManager {
+    client: Arc<Mutex<Option<WhatsAppClient>>>,
+    state: Arc<Mutex<ConnectionState>>,
+    initialization_lock: Arc<Mutex<()>>,
+    app_handle: AppHandle,
+    logger: Arc<Logger>,
 }
 
-type TabId =
-    | 'dashboard'
-    | 'automations'
-    | 'extract-users'
-    | 'add-to-group'
-    | 'logs'
-    | 'settings'
-```
-
-**Structure**:
-
-```tsx
-<div className="flex h-screen">
-    <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
-    <main className="flex-1">
-        <TabContent activeTab={activeTab} />
-    </main>
-</div>
-```
-
-### 4. TabNavigation Component
-
-**Location**: `src/components/layout/TabNavigation.tsx`
-
-**Responsibilities**:
-
-- Display navigation tabs (sidebar)
-- Highlight active tab
-- Trigger tab change events
-
-**Props**:
-
-```typescript
-interface TabNavigationProps {
-    activeTab: TabId
-    onTabChange: (tab: TabId) => void
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConnectionState {
+    Uninitialized,
+    Initializing,
+    Connected { phone_number: String },
+    Disconnected,
+    Error { message: String },
 }
 ```
 
-**Implementation Notes**:
+**Key Methods**:
 
-- Refactor existing Sidebar component
-- Replace `<Link>` with `<button>` elements
-- Use `onClick` handlers instead of routing
-- Maintain visual design and animations
+```rust
+impl ConnectionManager {
+    // Initialize with session check - idempotent
+    pub async fn initialize(&self) -> Result<ConnectionState, String>;
 
-### 5. TabContent Component
+    // Get current state without side effects
+    pub fn get_state(&self) -> ConnectionState;
 
-**Location**: `src/components/layout/TabContent.tsx`
+    // Connect/reconnect - handles all cases
+    pub async fn connect(&self) -> Result<(), String>;
 
-**Responsibilities**:
+    // Graceful disconnect
+    pub async fn disconnect(&self) -> Result<(), String>;
 
-- Conditionally render the active tab's content
-- Keep all tab components mounted but hidden (optional optimization)
-- Provide consistent layout wrapper
-
-**Props**:
-
-```typescript
-interface TabContentProps {
-    activeTab: TabId
+    // Check if session exists (cached result)
+    pub fn has_session(&self) -> bool;
 }
 ```
 
-**Implementation Strategy**:
+### 2. Refactored WhatsAppClient
 
-**Option A - Conditional Rendering** (Simpler, recommended):
+**Changes**:
 
-```tsx
-{
-    activeTab === 'dashboard' && <Dashboard />
+- Add handlers for all Node.js events
+- Make `initialize()` idempotent
+- Reduce logging verbosity
+- Add process state tracking
+
+**New Event Handlers**:
+
+```rust
+match message.event.as_str() {
+    "client_initializing" => {
+        // Log at debug level, emit to frontend
+        logger.debug(LogCategory::WhatsApp, "Client initializing".to_string()).await;
+        let _ = app_handle.emit("whatsapp_initializing", message.data);
+    }
+    "whatsapp_loading" => {
+        // Log at debug level, emit to frontend
+        logger.debug(LogCategory::WhatsApp, "WhatsApp loading".to_string()).await;
+        let _ = app_handle.emit("whatsapp_loading", message.data);
+    }
+    // ... existing handlers
 }
-{
-    activeTab === 'automations' && <Automations />
-}
-{
-    activeTab === 'extract-users' && <ExtractUsers />
-}
-// ... etc
 ```
 
-**Option B - Keep Mounted** (Better state preservation):
+**Idempotent Initialize**:
 
-```tsx
-<div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
-  <Dashboard />
-</div>
-<div style={{ display: activeTab === 'automations' ? 'block' : 'none' }}>
-  <Automations />
-</div>
-// ... etc
+```rust
+pub async fn initialize(&self) -> Result<(), String> {
+    let mut process_guard = self.process.lock().await;
+
+    // Check if already running
+    if let Some(child) = process_guard.as_mut() {
+        if let Ok(None) = child.try_wait() {
+            // Process is running, return success
+            return Ok(());
+        }
+        // Process died, clean up
+        let _ = child.kill().await;
+        *process_guard = None;
+    }
+
+    // Spawn new process
+    // ... existing spawn logic
+}
 ```
 
-We'll use **Option A** initially for simplicity, with Option B available if state preservation becomes critical.
+### 3. Simplified useWhatsApp Hook
 
-### 6. LoadingScreen Component
+**Changes**:
 
-**Location**: `src/components/shared/LoadingScreen.tsx`
+- Remove session checking logic (backend handles it)
+- Simplify initialization flow
+- Fix dependency arrays
+- Remove duplicate event listeners
 
-**Responsibilities**:
-
-- Display loading indicator during initialization
-- Show customizable message
-- Provide consistent loading UX
-
-**Props**:
+**New Implementation**:
 
 ```typescript
-interface LoadingScreenProps {
-    message?: string
+export function useWhatsApp() {
+    const [status, setStatus] = useState<WhatsAppStatus>('initializing')
+    const [qrCode, setQrCode] = useState<string | null>(null)
+    const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    // Initialize once on mount
+    useEffect(() => {
+        let mounted = true
+
+        const init = async () => {
+            try {
+                // Backend handles session check and initialization
+                await invoke('initialize_connection')
+            } catch (err) {
+                if (mounted) {
+                    const error = parseTauriError(err)
+                    setError(error.message)
+                    setStatus('disconnected')
+                }
+            }
+        }
+
+        init()
+
+        return () => {
+            mounted = false
+        }
+    }, []) // Empty deps - run once
+
+    // Setup event listeners once
+    useEffect(() => {
+        const listeners: UnlistenFn[] = []
+
+        const setup = async () => {
+            listeners.push(
+                await listen('whatsapp_state_changed', (event) => {
+                    // Single event for all state changes
+                    const state = event.payload as ConnectionStateEvent
+                    setStatus(state.status)
+                    setPhoneNumber(state.phone_number || null)
+                    setQrCode(state.qr_code || null)
+                    setError(state.error || null)
+                })
+            )
+        }
+
+        setup()
+
+        return () => {
+            listeners.forEach((unlisten) => unlisten())
+        }
+    }, [])
+
+    const connect = useCallback(async () => {
+        setError(null)
+        await invoke('connect_whatsapp')
+    }, [])
+
+    return { status, qrCode, phoneNumber, error, connect }
 }
 ```
+
+### 4. Simplified Tauri Commands
+
+**New Command Structure**:
+
+```rust
+// Single initialization command
+#[tauri::command]
+pub async fn initialize_connection(
+    state: State<'_, AppState>,
+) -> Result<ConnectionState, String> {
+    state.connection_manager.initialize().await
+}
+
+// Explicit connect command
+#[tauri::command]
+pub async fn connect_whatsapp(
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.connection_manager.connect().await
+}
+
+// Get current state (no side effects)
+#[tauri::command]
+pub fn get_connection_state(
+    state: State<'_, AppState>,
+) -> ConnectionState {
+    state.connection_manager.get_state()
+}
+```
+
+**Remove Commands**:
+
+- `check_session` (merged into `initialize_connection`)
+- `initialize_whatsapp` (replaced by `initialize_connection` and `connect_whatsapp`)
 
 ## Data Models
 
-### WhatsAppStatus Type Extension
+### ConnectionState Event
 
 ```typescript
-// Before
-type WhatsAppStatus = 'disconnected' | 'connecting' | 'connected'
-
-// After
-type WhatsAppStatus =
-    | 'disconnected'
-    | 'connecting'
-    | 'connected'
-    | 'initializing'
-```
-
-### Tab Configuration
-
-```typescript
-interface TabConfig {
-    id: TabId
-    label: string
-    icon: LucideIcon
-    component: React.ComponentType
+interface ConnectionStateEvent {
+    status:
+        | 'initializing'
+        | 'connecting'
+        | 'connected'
+        | 'disconnected'
+        | 'error'
+    phone_number?: string
+    qr_code?: string
+    error?: string
+    timestamp: number
 }
-
-const TAB_CONFIG: TabConfig[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, component: Dashboard },
-    {
-        id: 'automations',
-        label: 'Automação',
-        icon: Zap,
-        component: Automations
-    },
-    {
-        id: 'extract-users',
-        label: 'Extrair Membros',
-        icon: Users,
-        component: ExtractUsers
-    },
-    {
-        id: 'add-to-group',
-        label: 'Adicionar ao Grupo',
-        icon: UserPlus,
-        component: AddToGroup
-    },
-    { id: 'logs', label: 'Logs', icon: FileText, component: Logs },
-    {
-        id: 'settings',
-        label: 'Configurações',
-        icon: Settings,
-        component: SettingsPage
-    }
-]
 ```
 
-## Session Management Flow
+### Initialization Result
 
-### Application Startup Flow
-
-```
-1. App mounts
-   ↓
-2. WhatsAppProvider initializes
-   ↓
-3. Set status = 'initializing'
-   ↓
-4. Call checkSession() via Tauri command
-   ↓
-5a. Session exists              5b. No session
-    ↓                               ↓
-    Set status = 'connected'        Set status = 'disconnected'
-    Set phoneNumber                 ↓
-    ↓                               Set isInitialized = true
-    Set isInitialized = true        ↓
-    ↓                               AppShell renders ConnectPage
-    AppShell renders AuthenticatedApp
-```
-
-### Tab Navigation Flow
-
-```
-1. User clicks tab button
-   ↓
-2. onTabChange(newTabId) called
-   ↓
-3. setActiveTab(newTabId) updates state
-   ↓
-4. TabContent re-renders with new activeTab
-   ↓
-5. New tab content displays
-   (NO authentication check performed)
-```
-
-### Session Expiration Flow
-
-```
-1. Backend detects session expiration
-   ↓
-2. Emit 'whatsapp_disconnected' event
-   ↓
-3. WhatsAppContext listener updates status = 'disconnected'
-   ↓
-4. AppShell detects status change
-   ↓
-5. AppShell unmounts AuthenticatedApp
-   ↓
-6. AppShell renders ConnectPage
-   ↓
-7. Show toast notification: "Sessão expirada. Por favor, reconecte."
+```rust
+#[derive(Serialize, Deserialize, Clone)]
+pub struct InitializationResult {
+    pub state: ConnectionState,
+    pub has_session: bool,
+    pub requires_qr: bool,
+}
 ```
 
 ## Error Handling
 
-### Session Check Errors
+### Initialization Errors
 
-- If `checkSession()` fails, treat as no session exists
-- Log error for debugging
-- Set `status = 'disconnected'` and `isInitialized = true`
-- Display ConnectPage normally
+1. **Already Initializing**: Return current state without error
+2. **Process Spawn Failure**: Log error, emit event, return error to frontend
+3. **Session Check Failure**: Treat as no session, continue with QR flow
+4. **Timeout**: Clean up resources, return timeout error
 
 ### Connection Errors
 
-- Handled by existing error handling in useWhatsApp hook
-- Display error messages on ConnectPage
-- Allow retry via connect button
+1. **Client Not Initialized**: Initialize first, then connect
+2. **Node.js Process Died**: Restart process, attempt reconnection
+3. **WhatsApp Disconnected**: Emit event, update state, allow manual reconnection
 
-### Runtime Errors
+### Error Recovery Strategy
 
-- Tab switching errors: Log and show error boundary
-- Component render errors: Use React Error Boundaries per tab
-- State management errors: Reset to safe state (disconnect)
+```rust
+impl ConnectionManager {
+    async fn handle_error(&self, error: ConnectionError) -> Result<(), String> {
+        match error {
+            ConnectionError::ProcessDied => {
+                self.logger.warning(LogCategory::WhatsApp, "Process died, restarting".to_string()).await;
+                self.restart().await
+            }
+            ConnectionError::Timeout => {
+                self.logger.error(LogCategory::WhatsApp, "Connection timeout".to_string()).await;
+                self.set_state(ConnectionState::Error {
+                    message: "Connection timeout".to_string()
+                }).await;
+                Err("Connection timeout".to_string())
+            }
+            // ... other error types
+        }
+    }
+}
+```
 
 ## Testing Strategy
 
 ### Unit Tests
 
-1. **WhatsAppContext Tests**
-    - Test session check on mount
-    - Test status transitions
-    - Test error handling
-    - Mock Tauri invoke calls
+1. **ConnectionManager Tests**:
+    - Test idempotent initialization
+    - Test state transitions
+    - Test concurrent initialization attempts
+    - Test error handling and recovery
 
-2. **AppShell Tests**
-    - Test loading state display
-    - Test routing logic based on status
-    - Test initialization flow
+2. **WhatsAppClient Tests**:
+    - Test process lifecycle management
+    - Test event handling for all event types
+    - Test idempotent operations
 
-3. **AuthenticatedApp Tests**
-    - Test tab switching
-    - Test active tab highlighting
-    - Test component rendering
-
-4. **TabNavigation Tests**
-    - Test click handlers
-    - Test active state styling
-    - Test accessibility
+3. **Frontend Hook Tests**:
+    - Test single initialization on mount
+    - Test event listener cleanup
+    - Test state updates from backend events
 
 ### Integration Tests
 
-1. **Full Initialization Flow**
-    - Test app startup with existing session
-    - Test app startup without session
-    - Test session check failure handling
+1. **Initialization Flow**:
+    - Test cold start (no session)
+    - Test warm start (existing session)
+    - Test initialization with concurrent requests
 
-2. **Navigation Flow**
-    - Test switching between all tabs
-    - Verify no authentication re-checks
-    - Verify component state preservation (if using Option B)
+2. **Connection Recovery**:
+    - Test automatic reconnection
+    - Test manual reconnection
+    - Test recovery after process crash
 
-3. **Session Expiration**
-    - Simulate session expiration event
-    - Verify redirect to ConnectPage
-    - Verify notification display
+3. **State Synchronization**:
+    - Test frontend-backend state consistency
+    - Test event propagation
+    - Test state updates during transitions
 
-### Manual Testing Checklist
+### Manual Testing Scenarios
 
-- [ ] Cold start with no session shows Connect page
-- [ ] Cold start with valid session shows Dashboard
-- [ ] QR code connection flow works
-- [ ] All tabs are accessible and render correctly
-- [ ] Tab switching is instant (no loading)
-- [ ] Session expiration redirects to Connect
-- [ ] Reconnection after expiration works
-- [ ] Error states display correctly
-- [ ] Loading states display correctly
+1. **Normal Startup**: Verify single session check and initialization
+2. **Rapid Reconnection**: Click connect multiple times quickly
+3. **Process Kill**: Kill Node.js process, verify recovery
+4. **Session Expiration**: Let session expire, verify clean reconnection
 
 ## Migration Strategy
 
-### Phase 1: Preparation
+### Phase 1: Backend Refactor
 
-1. Create new components (AppShell, AuthenticatedApp, TabNavigation, TabContent, LoadingScreen)
-2. Enhance WhatsAppContext with session checking
-3. Add new Tauri command for session checking (if needed)
+1. Create `ConnectionManager` module
+2. Refactor `WhatsAppClient` for idempotency
+3. Add missing event handlers
+4. Update Tauri commands
+5. Add initialization guards
 
-### Phase 2: Implementation
+### Phase 2: Frontend Simplification
 
-1. Update App component to use AppShell instead of AppRouter
-2. Refactor Sidebar to TabNavigation
-3. Create TabContent with conditional rendering
-4. Update WhatsAppProvider to perform initial session check
+1. Simplify `useWhatsApp` hook
+2. Remove duplicate session checking
+3. Update event listeners
+4. Fix dependency arrays
 
-### Phase 3: Cleanup
+### Phase 3: Testing & Validation
 
-1. Remove React Router dependency
-2. Delete router.tsx and route files
-3. Remove unused imports
-4. Update page components to remove navigation logic
+1. Run unit tests
+2. Perform integration testing
+3. Manual testing of all scenarios
+4. Monitor logs for duplicates
 
-### Phase 4: Testing & Refinement
+### Phase 4: Cleanup
 
-1. Run test suite
-2. Perform manual testing
-3. Fix any issues
-4. Optimize performance if needed
-
-## Files to Create
-
-- `src/components/AppShell.tsx`
-- `src/components/AuthenticatedApp.tsx`
-- `src/components/layout/TabNavigation.tsx`
-- `src/components/layout/TabContent.tsx`
-- `src/components/shared/LoadingScreen.tsx`
-- `src/types/navigation.ts` (for TabId and TabConfig types)
-
-## Files to Modify
-
-- `src/app/index.tsx` - Use AppShell instead of AppRouter
-- `src/contexts/WhatsAppContext.tsx` - Add session checking logic
-- `src/hooks/useWhatsApp.ts` - Add checkSession method
-- `src/pages/Connect.tsx` - Remove navigation logic (handled by AppShell)
-
-## Files to Delete
-
-- `src/app/router.tsx`
-- `src/app/routes/*.tsx` (all route files)
-- `src/components/layout/Sidebar.tsx` (replaced by TabNavigation)
-- `src/components/layout/Layout.tsx` (no longer needed)
-
-## Dependencies to Remove
-
-```json
-{
-    "dependencies": {
-        "react-router": "^7.x.x", // REMOVE
-        "react-router-dom": "^6.x.x" // REMOVE (if present)
-    }
-}
-```
+1. Remove deprecated commands
+2. Remove unused code
+3. Update documentation
+4. Adjust log levels
 
 ## Performance Considerations
 
-### Benefits of Tab-Based Navigation
-
-1. **Faster Navigation**: No route matching or component lazy loading
-2. **State Preservation**: Components can stay mounted (Option B)
-3. **Reduced Re-renders**: Only active tab content updates
-4. **Simpler Code**: Less abstraction, easier to debug
-
-### Potential Optimizations
-
-1. **Lazy Load Tab Content**: Use React.lazy() for tab components if bundle size is a concern
-2. **Memoization**: Use React.memo() for tab components to prevent unnecessary re-renders
-3. **Virtual Scrolling**: If tabs have large lists, implement virtual scrolling
-4. **Preload Next Tab**: Preload likely next tab content in background
-
-## Accessibility
-
-- Ensure tab navigation is keyboard accessible (Tab, Arrow keys)
-- Use proper ARIA attributes (role="tablist", role="tab", aria-selected)
-- Maintain focus management during tab switches
-- Ensure screen readers announce tab changes
-- Maintain proper heading hierarchy within tabs
+1. **Initialization Time**: Should remain the same or improve slightly
+2. **Memory Usage**: Slight reduction from eliminating duplicate processes
+3. **Event Overhead**: Reduced by consolidating state change events
+4. **Lock Contention**: Minimal due to short critical sections
 
 ## Security Considerations
 
-- Session tokens should never be exposed in frontend state
-- Session validation should happen in Rust backend
-- Frontend only stores session existence flag, not credentials
-- Implement proper cleanup on logout/disconnect
+1. **Session Storage**: No changes to existing session security
+2. **Process Isolation**: Maintain existing Node.js subprocess isolation
+3. **Event Validation**: Validate all events from Node.js process
+4. **State Access**: Ensure thread-safe state access with proper locking
+
+## Logging Strategy
+
+### Log Levels
+
+- **Debug**: Routine operations (session checks, state transitions)
+- **Info**: Important milestones (connected, disconnected)
+- **Warning**: Recoverable issues (unknown events, retries)
+- **Error**: Failures requiring user attention
+
+### Example Log Output (After Refactor)
+
+```
+[DEBUG] Initializing connection manager
+[DEBUG] Checking for existing session
+[DEBUG] Session found, restoring connection
+[DEBUG] WhatsApp client initializing
+[DEBUG] Client loading
+[INFO] WhatsApp connected - +1234567890
+```
+
+## Rollback Plan
+
+If issues arise:
+
+1. Revert to previous commit
+2. Keep new event handlers (safe addition)
+3. Gradually introduce changes in smaller increments
+4. Add feature flag for new initialization flow

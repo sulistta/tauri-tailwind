@@ -1,15 +1,15 @@
 # Product Overview
 
-WhatsApp Automation is a desktop application for managing WhatsApp groups and automating operations.
+WhatsApp Automation is a desktop application for managing WhatsApp groups and automating operations. Built with Tauri for cross-platform support (Windows, macOS, Linux).
 
 ## Core Features
 
-- WhatsApp Web connection via QR code
-- Group management and member extraction
-- Bulk user addition to groups
-- Custom automation workflows
-- Session persistence across restarts
-- Export functionality (JSON/CSV)
+- **WhatsApp Connection**: Connect to WhatsApp Web via QR code authentication with session persistence
+- **Group Management**: Extract group information and member lists
+- **Bulk Operations**: Add multiple users to groups efficiently
+- **Custom Automations**: Create and execute automated WhatsApp workflows
+- **Session Management**: Persistent sessions across app restarts
+- **Logging**: Comprehensive activity logging for debugging and monitoring
 
 ## Target Platforms
 
@@ -19,4 +19,7 @@ WhatsApp Automation is a desktop application for managing WhatsApp groups and au
 
 ## Key Technologies
 
-Desktop app built with Tauri (Rust backend) and React frontend, using whatsapp-web.js for WhatsApp integration.
+- Frontend: React + TypeScript + Vite
+- Backend: Rust + Tauri
+- WhatsApp Integration: Node.js client (whatsapp-web.js via Puppeteer)
+- UI: Shadcn UI + Tailwind CSS

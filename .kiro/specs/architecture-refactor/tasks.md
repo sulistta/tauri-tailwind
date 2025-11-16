@@ -1,153 +1,179 @@
 # Implementation Plan
 
-- [x]   1. Create shared types and configuration
-    - Create `src/types/navigation.ts` with TabId type and TabConfig interface
-    - Define TAB_CONFIG array with all tab configurations
-    - _Requirements: 2.1, 2.2, 4.2_
+- [x]   1. Create ConnectionManager module in Rust backend
+    - Create new file `src-tauri/src/connection/manager.rs` with ConnectionManager struct
+    - Implement ConnectionState enum with all states (Uninitialized, Initializing, Connected, Disconnected, Error)
+    - Add initialization_lock mutex to prevent concurrent initialization
+    - Implement `initialize()` method with session check and idempotent logic
+    - Implement `get_state()` method for state queries without side effects
+    - Implement `connect()` method for explicit connection requests
+    - Implement `disconnect()` method for graceful shutdown
+    - Add `has_session()` method with cached result
+    - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 7.1, 7.2, 7.3, 10.1, 10.2, 10.3_
 
-- [x]   2. Create LoadingScreen component
-    - Create `src/components/shared/LoadingScreen.tsx` component
-    - Implement loading spinner with customizable message prop
-    - Add fade-in animation for smooth appearance
-    - _Requirements: 1.2, 1.3_
+-
 
-- [ ]   3. Enhance WhatsAppContext with session initialization
-    - [x] 3.1 Add new state properties to WhatsAppContext
-        - Add `isInitialized` boolean state
-        - Add `initializing` to WhatsAppStatus type
-        - Update WhatsAppContextType interface
-        - _Requirements: 1.1, 3.1, 3.3_
-
-    - [ ] 3.2 Implement checkSession method in useWhatsApp hook
-        - Add `checkSession()` function that calls Tauri backend
-        - Handle session check success (set status to 'connected')
-        - Handle session check failure (set status to 'disconnected')
-
-        - Set `isInitialized` to true after check completes
-
-        - _Requirements: 1.1, 1.4, 3.1_
-
-    - [ ] 3.3 Add automatic session check on mount
-        - Call `checkSession()` in useEffect on component mount
-        - Set status to 'initializing' before check
-
-        - Handle errors gracefully (treat as no session)
-        - _Requirements: 1.1, 3.1_
-
-- [x]   4. Create TabNavigation component
-    - [ ] 4.1 Create `src/components/layout/TabNavigation.tsx`
-        - Accept `activeTab` and `onTabChange` props
-        - Render tab buttons using TAB_CONFIG
-        - Implement active tab highlighting
-        - Add hover and transition effects
-        - _Requirements: 2.1, 2.2, 2.5, 4.2_
-
-    - [x] 4.2 Implement click handlers
-        - Call `onTabChange` with clicked tab ID
-        - Prevent default button behavior
-        - Add keyboard navigation support (Arrow keys)
-
-        - _Requirements: 2.2, 3.2_
-
-- [ ]   5. Create TabContent component
-    - Create `src/components/layout/TabContent.tsx`
-    - Accept `activeTab` prop
-    - Implement conditional rendering for each tab
-
-    - Render Dashboard, Automations, ExtractUsers, AddToGroup, Logs, and Settings based on activeTab
-    - Wrap content in consistent layout container
-    - _Requirements: 2.2, 2.3, 2.4, 4.2_
-
-- [ ]   6. Create AuthenticatedApp component
-    - [ ] 6.1 Create `src/components/AuthenticatedApp.tsx`
-        - Create component with activeTab state management
-        - Initialize activeTab to 'dashboard'
-        - Implement tab change handler
-        - _Requirements: 2.1, 2.2, 4.3_
-    - [ ] 6.2 Compose layout with TabNavigation and TabContent
-        - Render TabNavigation with activeTab and onTabChange props
-        - Render TabContent with activeTab prop
-        - Apply flex layout for sidebar + main content
-        - Maintain existing visual styling
-        - _Requirements: 2.2, 2.4, 4.2_
-
-- [x]   7. Create AppShell component
-    - [x] 7.1 Create `src/components/AppShell.tsx`
-        - Consume WhatsAppContext
-        - Implement initialization loading state
-        - Implement routing logic based on authentication status
-        - _Requirements: 1.2, 1.3, 1.4, 1.5, 4.3_
-
-    - [ ] 7.2 Implement session expiration handling
-        - Listen for status changes from 'connected' to 'disconnected'
-        - Show toast notification on session expiration
-        - Automatically redirect to ConnectPage
-
+- [x]   2. Refactor WhatsAppClient for idempotency and complete event handling
+    - [x] 2.1 Add missing Node.js event handlers
+        - Add handler for `client_initializing` event with debug logging
+        - Add handler for `whatsapp_loading` event with debug logging
+        - Update `handle_node_message()` to route new events properly
+        - Change unknown event logging from warning to debug level
         - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [ ]   8. Update Connect page
-    - Remove navigation logic from `src/pages/Connect.tsx`
-    - Remove useNavigate hook and redirect useEffect
-    - Let AppShell handle routing after connection
-    - Keep QR code display and connection UI
+    - [x] 2.2 Make initialize() method idempotent
+        - Add process state check at start of `initialize()`
+        - Return success immediately if process is already running
+        - Clean up dead processes before spawning new ones
+        - Add process state tracking field to WhatsAppClient struct
+        - _Requirements: 2.2, 2.3, 7.1, 7.2, 7.3_
 
-    - _Requirements: 1.5, 4.2_
+    - [x] 2.3 Reduce logging verbosity
+        - Change routine operation logs from info to debug level
+        - Keep only user-relevant events at info level (connected, disconnected)
+        - Update all log calls in `handle_node_message()`
+        - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ]   9. Update App component to use new architecture
-    - Modify `src/app/index.tsx` to use AppShell instead of AppRouter
+- [x]   3. Update AppState and integrate ConnectionManager
+    - Modify `AppState` struct to include `connection_manager: Arc<ConnectionManager>`
+    - Update `main.rs` setup to initialize ConnectionManager
+    - Pass ConnectionManager to all relevant commands
+    - Remove direct `whatsapp_client` access from commands where possible
+    - _Requirements: 3.1, 3.3, 9.1, 9.2, 9.3_
 
-    - Remove AppRouter import
-    - Ensure WhatsAppProvider wraps AppShell
-    - _Requirements: 4.1, 4.2, 4.3_
+- [x]   4. Create new Tauri commands for simplified API
+    - [x] 4.1 Implement initialize_connection command
+        - Create `initialize_connection()` command that calls ConnectionManager.initialize()
+        - Return InitializationResult with state, has_session, and requires_qr
+        - Add proper error handling and logging
+        - _Requirements: 1.1, 2.1, 7.1, 9.4_
 
-- [ ]   10. Remove React Router dependencies
-    - [ ] 10.1 Delete router and route files
-        - Delete `src/app/router.tsx`
+    - [x] 4.2 Implement connect_whatsapp command
+        - Create `connect_whatsapp()` command that calls ConnectionManager.connect()
+        - Handle case where client needs initialization first
+        - Emit state change events to frontend
+        - _Requirements: 2.1, 3.2, 7.1, 9.4_
 
-        - Delete all files in `src/app/routes/` directory
-        - Delete `src/components/layout/Sidebar.tsx`
-        - Delete `src/components/layout/Layout.tsx`
-        - _Requirements: 4.1, 4.4_
+    - [x] 4.3 Implement get_connection_state command
+        - Create `get_connection_state()` command that returns current state
+        - Ensure no side effects (pure query)
+        - Return ConnectionState directly
+        - _Requirements: 3.1, 3.4, 9.4_
 
-    - [ ] 10.2 Remove React Router imports from all files
-        - Remove imports from any remaining files that reference react-router
-        - Update any components using Link, useNavigate, or useLocation
-        - _Requirements: 4.1, 4.4_
-    - [ ] 10.3 Uninstall React Router package
-        - Remove react-router from package.json dependencies
-        - Run package manager to update lock file
-        - _Requirements: 4.1_
+- [x]   5. Refactor existing Tauri commands to use ConnectionManager
+    - Update `get_groups()` to use ConnectionManager for client access
+    - Update `extract_group_members()` to use ConnectionManager
+    - Update `add_users_to_group()` to use ConnectionManager
+    - Update `execute_automation()` to use ConnectionManager
+    - Remove `check_session()` command (functionality moved to initialize_connection)
+    - Remove `initialize_whatsapp()` command (replaced by new commands)
+    - _Requirements: 3.1, 3.3, 9.1, 9.2, 9.3_
 
-- [ ]   11. Add Tauri backend session check command
-    - Add `check_session` command in Rust backend
-    - Implement logic to verify if WhatsApp session exists
-    - Return session status and phone number if available
-    - Handle errors and return appropriate response
-    - _Requirements: 1.1, 3.1_
+- [x]   6. Implement consolidated state change event emission
+    - Create `emit_state_change()` helper method in ConnectionManager
+    - Emit single `whatsapp_state_changed` event with all state data
+    - Include status, phone_number, qr_code, error, and timestamp in event
+    - Update all state transitions to use this helper
+    - _Requirements: 3.2, 5.5, 9.3_
 
-- [ ]   12. Update page components to remove navigation dependencies
-    - Review Dashboard, Automations, ExtractUsers, AddToGroup, Logs, Settings pages
-    - Remove any direct navigation logic or router dependencies
-    - Ensure components work as standalone views
-    - _Requirements: 4.2, 4.4_
+- [x]   7. Simplify useWhatsApp hook in frontend
+    - [x] 7.1 Remove session checking logic
+        - Remove `checkSession()` function
+        - Remove session check useEffect
+        - Remove `isInitialized` state variable
+        - _Requirements: 1.1, 4.1, 4.2, 9.1, 9.4_
 
-- [ ]\* 13. Add error boundaries for tab content
-    - Create ErrorBoundary component for tab content
-    - Wrap each tab in TabContent with ErrorBoundary
-    - Display user-friendly error message on component failure
-    - Provide reset/retry functionality
-    - _Requirements: 2.4_
+    - [x] 7.2 Consolidate event listeners
+        - Replace multiple event listeners with single `whatsapp_state_changed` listener
+        - Update state from consolidated event payload
+        - Fix dependency arrays to prevent re-creation
+        - _Requirements: 3.2, 4.3, 4.4, 5.5_
 
-- [ ]\* 14. Implement accessibility features
-    - Add ARIA attributes to TabNavigation (role="tablist", role="tab")
-    - Implement keyboard navigation (Tab, Arrow keys, Enter)
-    - Add aria-selected attribute to active tab
-    - Ensure focus management during tab switches
-    - Test with screen reader
-    - _Requirements: 2.2, 2.5_
+    - [x] 7.3 Simplify initialization flow
+        - Call `initialize_connection` once on mount
+        - Remove duplicate initialization attempts
+        - Handle initialization errors properly
+        - Add cleanup on unmount
+        - _Requirements: 1.1, 2.1, 4.1, 4.2, 4.5_
 
-- [ ]\* 15. Add performance optimizations
-    - Wrap tab components with React.memo() to prevent unnecessary re-renders
-    - Implement useCallback for tab change handler
-    - Consider lazy loading for tab components if bundle size is large
-    - _Requirements: 2.2, 3.2_
+- [x]   8. Update WhatsAppContext and provider
+    - Remove `checkSession` from context interface
+    - Remove `isInitialized` from context interface
+    - Simplify context value to essential state only
+    - Update all consumers of removed properties
+    - _Requirements: 3.1, 9.1, 9.4_
+
+- [x]   9. Update AppShell component
+    - Remove session expiration detection logic (handled by backend)
+    - Simplify routing based on connection status
+    - Remove `isInitialized` check (always initialized now)
+    - Update loading screen logic
+    - _Requirements: 3.1, 4.1, 9.1_
+
+- [x]   10. Implement connection recovery improvements
+    - [x] 10.1 Update useConnectionRecovery hook
+        - Coordinate with ConnectionManager state
+        - Check if initialization is in progress before retrying
+        - Implement exponential backoff
+        - Add max retry limit
+        - _Requirements: 8.1, 8.2, 8.3, 8.4_
+
+    - [x] 10.2 Add recovery state to ConnectionManager
+        - Track recovery attempts in ConnectionManager
+        - Implement backoff logic in backend
+        - Emit recovery events to frontend
+        - Reset recovery state on manual connect
+        - _Requirements: 8.1, 8.2, 8.4, 8.5_
+
+-
+
+- [x]   11. Add initialization guards and concurrency control
+    - Implement mutex-based serialization in ConnectionManager
+    - Add timeout for initialization operations (30 seconds)
+    - Queue or reject concurrent initialization requests
+    - Release locks on timeout or error
+    - Add clear error messages for blocked operations
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
+
+- [x]   12. Update TypeScript types for new API
+    - Create ConnectionStateEvent interface
+    - Create InitializationResult interface
+    - Update WhatsAppStatus type if needed
+    - Remove obsolete type definitions
+    - _Requirements: 3.1, 9.3_
+
+- [x]   13. Update logging configuration
+    - Add Logger method for debug level logging
+    - Update all routine operation logs to use debug level
+    - Keep error and warning logs at appropriate levels
+    - Add log level configuration option
+    - _Requirements: 6.1, 6.2, 6.3, 6.5_
+
+- [x]   14. Update error handling throughout the application
+    - Implement ConnectionError enum in Rust
+    - Add error recovery strategies in ConnectionManager
+    - Update frontend error display for new error types
+    - Add user-friendly error messages
+    - _Requirements: 2.5, 8.1, 8.2, 8.3_
+
+- [x]   15. Clean up deprecated code and update documentation
+    - Remove old `check_session` command registration
+    - Remove old `initialize_whatsapp` command registration
+    - Update command handler list in main.rs
+    - Remove unused imports and dead code
+    - Update inline documentation and comments
+
+    - _Requirements: 9.1, 9.2, 9.3_
+
+-
+
+- [x]   16. Verify and test the refactored architecture
+    - Start application and verify single initialization in logs
+    - Test cold start (no session) flow
+    - Test warm start (existing session) flow
+    - Test rapid reconnection attempts
+    - Test connection recovery after process crash
+    - Verify no duplicate logs during startup
+    - Verify all Node.js events are handled without warnings
+    - Test concurrent initialization attempts are properly serialized
+    - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 5.1, 5.2, 5.3, 10.1, 10.2_

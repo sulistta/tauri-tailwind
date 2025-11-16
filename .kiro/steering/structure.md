@@ -4,68 +4,129 @@
 
 Based on [bulletproof-react](https://github.com/alan2207/bulletproof-react) feature-based architecture.
 
-## Directory Layout
+## Frontend Structure (`src/`)
 
 ```
 src/
-├── app/              # Application layer (routes, providers, global config)
-├── components/       # Shared UI components (pure, reusable)
-├── config/           # Global configuration and env variables
-├── contexts/         # React context providers
-├── features/         # Feature-based modules (see below)
-├── hooks/            # Shared custom hooks
-├── lib/              # Preconfigured libraries and utilities
-├── pages/            # Page components (route handlers)
-├── types/            # Shared TypeScript types
-└── main.tsx          # Application entry point
+├── app/                    # Application layer
+│   ├── routes/            # Route definitions
+│   ├── index.tsx          # Main app component
+│   ├── provider.tsx       # Global providers wrapper
+│   └── global.css         # Global styles
+│
+├── components/            # Shared UI components
+│   ├── ui/               # Shadcn UI primitives (Button, Dialog, etc.)
+│   ├── layout/           # Layout components (Header, Sidebar, etc.)
+│   ├── shared/           # Reusable components across features
+│   ├── whatsapp/         # WhatsApp-specific components
+│   ├── automation/       # Automation-specific components
+│   ├── AppShell.tsx      # Main app shell
+│   └── AuthenticatedApp.tsx  # Authenticated app wrapper
+│
+├── features/             # Feature-based modules
+│   ├── [feature-name]/
+│   │   ├── api/         # API calls for this feature
+│   │   ├── components/  # Feature-specific components
+│   │   ├── hooks/       # Feature-specific hooks
+│   │   ├── types/       # Feature-specific types
+│   │   └── utils/       # Feature-specific utilities
+│   ├── navigation/      # Navigation feature
+│   ├── errors/          # Error handling feature
+│   └── built-with/      # About/credits feature
+│
+├── pages/                # Page components (route targets)
+│   ├── Connect.tsx      # WhatsApp connection page
+│   ├── Dashboard.tsx    # Main dashboard
+│   ├── ExtractUsers.tsx # User extraction page
+│   ├── AddToGroup.tsx   # Bulk add page
+│   ├── Automations.tsx  # Automation management
+│   ├── Logs.tsx         # Activity logs
+│   └── Settings.tsx     # App settings
+│
+├── hooks/                # Shared custom hooks
+│   ├── useWhatsApp.ts   # WhatsApp connection hook
+│   ├── useGroups.ts     # Group management hook
+│   ├── useAutomations.ts # Automation hook
+│   ├── useLogs.ts       # Logging hook
+│   ├── useSettings.ts   # Settings hook
+│   └── useConnectionRecovery.ts # Connection recovery
+│
+├── contexts/             # React contexts
+│   └── WhatsAppContext.tsx  # Global WhatsApp state
+│
+├── lib/                  # Reusable libraries
+│   ├── utils/           # Utility functions
+│   ├── error-handler.ts # Error handling utilities
+│   └── ERROR_HANDLING.md # Error handling docs
+│
+├── types/                # Shared TypeScript types
+│   ├── whatsapp.ts      # WhatsApp-related types
+│   ├── automation.ts    # Automation types
+│   └── navigation.ts    # Navigation types
+│
+├── config/               # Configuration
+│   └── env.ts           # Environment variables
+│
+└── main.tsx             # App entry point
+```
 
+## Backend Structure (`src-tauri/`)
+
+```
 src-tauri/
-├── src/              # Rust backend code
-├── whatsapp-node/    # Node.js WhatsApp client (subprocess)
-├── capabilities/     # Tauri permission definitions
-├── icons/            # Application icons
-└── tauri.conf.json   # Tauri configuration
+├── src/
+│   ├── main.rs          # Entry point, command registration
+│   ├── lib.rs           # Library root
+│   ├── commands.rs      # Tauri command handlers
+│   ├── connection/      # Connection management module
+│   ├── logging/         # Logging module
+│   └── [other modules]
+│
+├── whatsapp-node/       # Node.js WhatsApp client
+│   ├── index.js         # Node.js entry point
+│   ├── package.json     # Node dependencies
+│   └── node_modules/    # Node dependencies (bundled)
+│
+├── capabilities/        # Tauri security capabilities
+├── icons/              # App icons for all platforms
+├── gen/                # Generated Tauri files
+├── target/             # Rust build output
+├── Cargo.toml          # Rust dependencies
+├── tauri.conf.json     # Tauri configuration
+└── build.rs            # Build script
 ```
-
-## Feature Module Structure
-
-Each feature in `src/features/` follows this pattern:
-
-```
-features/awesome-feature/
-├── api/          # API calls and hooks for this feature
-├── assets/       # Feature-specific assets
-├── components/   # Feature-scoped components
-├── hooks/        # Feature-scoped hooks
-├── types/        # Feature-specific types
-└── utils/        # Feature-specific utilities
-```
-
-## Component Organization
-
-- **src/components/**: Pure UI components (buttons, inputs, layouts) - no business logic
-- **src/features/\*/components/**: Feature-specific components with business logic
-- **src/pages/**: Minimal page components that compose features and shared components
 
 ## Key Conventions
 
-1. **Route Logic**: Keep routes in `src/app/` or `src/pages/` minimal - delegate to features
-2. **Feature Composition**: Pages use features to build functionality
-3. **Pure Components**: Shared components in `src/components/` should be pure UI (like shadcn/ui)
-4. **Scoping**: Keep feature-specific code within feature directories
-5. **Imports**: Use `@/` path alias for all imports from `src/`
+### Component Organization
 
-## Tauri Backend
+- **Pages**: Minimal logic, compose features and components
+- **Features**: Self-contained modules with their own components, hooks, types
+- **Components**: Pure UI components, reusable across features
+- **Hooks**: Encapsulate business logic and state management
 
-- **Commands**: Rust functions exposed to frontend via `#[tauri::command]`
-- **Events**: Bidirectional communication between Rust and frontend
-- **Plugins**: Tauri plugins for shell, dialog, fs, process access
-- **WhatsApp Integration**: Node.js subprocess managed by Rust backend
+### Import Patterns
 
-## Configuration Files
+- Use `@/` alias for imports from `src/`
+- Example: `import { Button } from '@/components/ui/button'`
 
-- `components.json`: shadcn/ui component configuration
-- `tsconfig.json`: TypeScript with strict mode, path aliases
-- `vite.config.ts`: Vite with Tauri-specific settings
-- `eslint.config.js`: ESLint 9 flat config
-- `prettier.config.js`: 4 spaces, single quotes, no semicolons
+### File Naming
+
+- Components: PascalCase (e.g., `Dashboard.tsx`)
+- Hooks: camelCase with `use` prefix (e.g., `useWhatsApp.ts`)
+- Types: camelCase (e.g., `whatsapp.ts`)
+- Utilities: kebab-case (e.g., `error-handler.ts`)
+
+### Feature Structure
+
+Each feature should be self-contained:
+
+- Keep feature-specific code within the feature folder
+- Export public API from feature index
+- Share common code via `src/components` or `src/hooks`
+
+### Rust Module Organization
+
+- Each module in its own folder with `mod.rs`
+- Public API exposed through module exports
+- Commands registered in `main.rs`

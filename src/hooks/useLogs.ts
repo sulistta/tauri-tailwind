@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { LogEntry, LogFilter } from '../types/whatsapp'
+import type { LogEntry, LogFilter, LogLevel } from '../types/whatsapp'
 
 export function useLogs() {
     const [logs, setLogs] = useState<LogEntry[]>([])
     const [loading, setLoading] = useState(false)
+    const [logLevel, setLogLevelState] = useState<LogLevel>('info')
 
     useEffect(() => {
         // Listen for new log entries
@@ -13,8 +14,9 @@ export function useLogs() {
             setLogs((prevLogs) => [...prevLogs, event.payload])
         })
 
-        // Load initial logs
+        // Load initial logs and log level
         loadLogs()
+        loadLogLevel()
 
         return () => {
             unlisten.then((fn) => fn())
@@ -46,11 +48,33 @@ export function useLogs() {
         loadLogs(filter)
     }
 
+    const loadLogLevel = async () => {
+        try {
+            const level = await invoke<string>('get_log_level')
+            setLogLevelState(level as LogLevel)
+        } catch (error) {
+            console.error('Failed to load log level:', error)
+        }
+    }
+
+    const setLogLevel = async (level: LogLevel) => {
+        try {
+            await invoke('set_log_level', { level })
+            setLogLevelState(level)
+        } catch (error) {
+            console.error('Failed to set log level:', error)
+            throw error
+        }
+    }
+
     return {
         logs,
         loading,
+        logLevel,
         loadLogs,
         clearLogs,
-        filterLogs
+        filterLogs,
+        setLogLevel,
+        loadLogLevel
     }
 }

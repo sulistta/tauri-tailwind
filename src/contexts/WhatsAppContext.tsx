@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useWhatsApp } from '@/hooks/useWhatsApp'
-import type { WhatsAppStatus } from '@/hooks/useWhatsApp'
+import type { WhatsAppStatus } from '@/types/whatsapp'
 
 interface WhatsAppContextType {
     status: WhatsAppStatus
@@ -9,8 +9,6 @@ interface WhatsAppContextType {
     error: string | null
     connect: () => Promise<void>
     isRecovering: boolean
-    isInitialized: boolean
-    checkSession: () => Promise<boolean>
 }
 
 const WhatsAppContext = createContext<WhatsAppContextType | undefined>(

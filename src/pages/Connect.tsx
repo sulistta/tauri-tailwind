@@ -93,6 +93,7 @@ export default function Connect() {
                                 onRetry={handleConnect}
                                 variant="card"
                                 className="w-full"
+                                showDetails={true}
                             />
                         </div>
                     )}

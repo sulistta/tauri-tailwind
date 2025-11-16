@@ -1,5 +1,7 @@
 import { toast } from 'sonner'
 
+import type { ConnectionErrorDetails } from '@/types/whatsapp'
+
 /**
  * Custom error class for WhatsApp operations
  */
@@ -7,10 +9,32 @@ export class WhatsAppError extends Error {
     constructor(
         message: string,
         public code: string,
-        public details?: unknown
+        public details?: unknown,
+        public errorDetails?: ConnectionErrorDetails
     ) {
         super(message)
         this.name = 'WhatsAppError'
+    }
+
+    /**
+     * Check if the error is recoverable
+     */
+    isRecoverable(): boolean {
+        return this.errorDetails?.recoverable ?? false
+    }
+
+    /**
+     * Get error category
+     */
+    getCategory(): string {
+        return this.errorDetails?.category ?? 'general'
+    }
+
+    /**
+     * Get user-friendly message
+     */
+    getUserMessage(): string {
+        return this.errorDetails?.user_message ?? this.message
     }
 }
 

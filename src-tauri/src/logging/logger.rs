@@ -7,9 +7,21 @@ use tauri::Emitter;
 
 const MAX_LOG_ENTRIES: usize = 1000;
 
+/// Log level determines which logs are captured and emitted to the frontend
+/// 
+/// Levels (from most to least verbose):
+/// - Debug: Detailed diagnostic information for troubleshooting
+/// - Info: General informational messages about application state
+/// - Warning: Potentially problematic situations that don't prevent operation
+/// - Error: Error events that might still allow the application to continue
+/// 
+/// When a minimum log level is set, only logs at that level or higher are captured.
+/// For example, setting the level to Info will capture Info, Warning, and Error logs,
+/// but not Debug logs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
+    Debug,
     Info,
     Warning,
     Error,
@@ -41,6 +53,7 @@ pub struct LogFilter {
 pub struct Logger {
     entries: Arc<Mutex<VecDeque<LogEntry>>>,
     app_handle: Option<tauri::AppHandle>,
+    min_level: Arc<Mutex<LogLevel>>,
 }
 
 impl Logger {
@@ -48,6 +61,7 @@ impl Logger {
         Self {
             entries: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_LOG_ENTRIES))),
             app_handle: None,
+            min_level: Arc::new(Mutex::new(LogLevel::Info)), // Default to Info level
         }
     }
 
@@ -55,7 +69,48 @@ impl Logger {
         self.app_handle = Some(handle);
     }
 
+    /// Set the minimum log level to capture
+    /// Logs below this level will not be stored or emitted
+    pub async fn set_log_level(&self, level: LogLevel) {
+        let mut min_level = self.min_level.lock().await;
+        *min_level = level;
+    }
+
+    /// Get the current minimum log level
+    pub async fn get_log_level(&self) -> LogLevel {
+        let min_level = self.min_level.lock().await;
+        min_level.clone()
+    }
+
     pub async fn log(&self, level: LogLevel, category: LogCategory, message: String) {
+        // Check if this log level should be captured
+        let min_level = self.min_level.lock().await;
+        let should_capture = match (&level, min_level.clone()) {
+            (LogLevel::Debug, LogLevel::Debug) => true,
+            (LogLevel::Info, LogLevel::Debug | LogLevel::Info) => true,
+            (LogLevel::Warning, LogLevel::Debug | LogLevel::Info | LogLevel::Warning) => true,
+            (LogLevel::Error, _) => true, // Always capture errors
+            _ => false,
+        };
+        drop(min_level);
+
+        // Always print to console in debug builds
+        #[cfg(debug_assertions)]
+        {
+            let level_str = match level {
+                LogLevel::Debug => "DEBUG",
+                LogLevel::Info => "INFO",
+                LogLevel::Warning => "WARNING",
+                LogLevel::Error => "ERROR",
+            };
+            println!("[{}] [{:?}] {}", level_str, category, message);
+        }
+
+        // Only store and emit if level is high enough
+        if !should_capture {
+            return;
+        }
+
         let entry = LogEntry {
             id: uuid::Uuid::new_v4().to_string(),
             timestamp: Utc::now(),
@@ -76,6 +131,10 @@ impl Logger {
         if let Some(handle) = &self.app_handle {
             let _ = handle.emit("log_entry", entry);
         }
+    }
+
+    pub async fn debug(&self, category: LogCategory, message: String) {
+        self.log(LogLevel::Debug, category, message).await;
     }
 
     pub async fn info(&self, category: LogCategory, message: String) {

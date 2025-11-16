@@ -4,67 +4,70 @@
 
 - **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite 7
-- **Styling**: Tailwind CSS 4 with shadcn/ui components
-- **State Management**: React Context API
-- **UI Components**: Radix UI primitives, Lucide icons
-- **Notifications**: Sonner (toast notifications)
+- **Styling**: Tailwind CSS 4 with Shadcn UI components
+- **State Management**: React Context API (WhatsAppContext)
+- **UI Components**: Radix UI primitives + Lucide icons
 - **Validation**: Zod schemas
+- **Error Handling**: react-error-boundary
+- **Theming**: next-themes for dark/light mode
 
 ## Backend
 
 - **Framework**: Tauri 2 (Rust)
 - **Runtime**: Tokio async runtime
-- **WhatsApp Integration**: Node.js subprocess with whatsapp-web.js
-- **Serialization**: Serde for JSON handling
+- **Serialization**: serde + serde_json
+- **WhatsApp Client**: Node.js subprocess (whatsapp-web.js)
+- **Plugins**: shell, process, dialog, fs
 
 ## Development Tools
 
 - **Package Manager**: Bun (preferred) or npm/pnpm
-- **Linting**: ESLint 9 with flat config
+- **Linting**: ESLint 9 (flat config)
 - **Formatting**: Prettier (4 spaces, single quotes, no semicolons)
-- **Git Hooks**: Husky + lint-staged for pre-commit checks
+- **Git Hooks**: Husky + lint-staged (auto-format on commit)
 - **TypeScript**: Strict mode enabled
 
 ## Common Commands
 
+### Development
+
 ```bash
-# Development
 bun install              # Install dependencies
 bun dev                  # Start Vite dev server only
 bun tauri dev            # Start full Tauri app with hot reload
+```
 
-# Building
+### Building
+
+```bash
 bun build                # Build frontend only
 bun tauri build          # Build production app for current platform
 bun tauri build --debug  # Build with debug symbols
-
-# Code Quality
-bun lint                 # Run ESLint
-bun format               # Format code with Prettier
-
-# WhatsApp Node Setup
-cd src-tauri/whatsapp-node
-npm install              # Install WhatsApp client dependencies
 ```
 
-## Build Requirements
+### Code Quality
 
-- Node.js 18+ (required for whatsapp-web.js at runtime)
-- Rust 1.70+
-- Platform-specific: Visual Studio Build Tools (Windows), Xcode CLI (macOS), webkit2gtk (Linux)
+```bash
+bun lint                 # Run ESLint
+bun format               # Format code with Prettier
+```
+
+### Pre-build
+
+```bash
+node scripts/pre-build.js  # Runs automatically before tauri build
+```
+
+## Configuration Files
+
+- `vite.config.ts` - Vite bundler config (port 1420, WASM support)
+- `tsconfig.json` - TypeScript config (strict mode, path aliases)
+- `eslint.config.js` - ESLint flat config
+- `prettier.config.js` - Code formatting rules
+- `components.json` - Shadcn UI component config
+- `src-tauri/tauri.conf.json` - Tauri app configuration
+- `src-tauri/Cargo.toml` - Rust dependencies
 
 ## Path Aliases
 
-Use `@/` for imports from `src/` directory:
-
-```typescript
-import { Component } from '@/components/Component'
-import { useHook } from '@/hooks/useHook'
-```
-
-## Vite Configuration
-
-- Fixed port: 1420 (required by Tauri)
-- WASM support enabled
-- Top-level await enabled
-- Worker format: ES modules
+- `@/*` maps to `./src/*` for cleaner imports

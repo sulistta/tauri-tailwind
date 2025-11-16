@@ -45,7 +45,7 @@ const client = new Client({
 client.on('qr', async (qr) => {
     try {
         const qrBase64 = await qrcode.toDataURL(qr);
-        sendToTauri('whatsapp_qr', { qr_base64: qrBase64 });
+        sendToTauri('whatsapp_qr', { qr: qrBase64 });
     } catch (error) {
         sendToTauri('whatsapp_error', {
             message: 'Failed to generate QR code',
@@ -61,7 +61,7 @@ client.on('qr', async (qr) => {
 client.on('ready', () => {
     const phoneNumber = client.info?.wid?.user || 'unknown';
     sendToTauri('whatsapp_ready', {
-        phone_number: phoneNumber,
+        phoneNumber: phoneNumber,
         timestamp: new Date().toISOString()
     });
 });

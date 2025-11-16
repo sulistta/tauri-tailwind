@@ -35,10 +35,22 @@ impl WhatsAppClient {
     pub async fn initialize(&self) -> Result<(), String> {
         let mut process_guard = self.process.lock().await;
 
-        // Check if process is already running
+        // Check if process is already running (idempotency check - Task 2.2)
         if let Some(child) = process_guard.as_mut() {
-            if let Ok(None) = child.try_wait() {
-                return Ok(()); // Process is still running
+            match child.try_wait() {
+                Ok(None) => {
+                    // Process is still running, return success immediately
+                    return Ok(());
+                }
+                Ok(Some(_)) => {
+                    // Process has exited, clean up before spawning new one
+                    *process_guard = None;
+                }
+                Err(_) => {
+                    // Error checking process status, attempt cleanup
+                    let _ = child.kill().await;
+                    *process_guard = None;
+                }
             }
         }
 
@@ -146,9 +158,29 @@ impl WhatsAppClient {
 
             tokio::spawn(async move {
                 match message.event.as_str() {
+                    // New handlers for missing events (Task 2.1)
+                    "client_initializing" => {
+                        logger
+                            .debug(
+                                crate::logging::LogCategory::WhatsApp,
+                                "Client initializing".to_string(),
+                            )
+                            .await;
+                        let _ = app_handle.emit("whatsapp_initializing", message.data);
+                    }
+                    "whatsapp_loading" => {
+                        logger
+                            .debug(
+                                crate::logging::LogCategory::WhatsApp,
+                                "WhatsApp loading".to_string(),
+                            )
+                            .await;
+                        let _ = app_handle.emit("whatsapp_loading", message.data);
+                    }
+                    // Existing handlers with updated logging levels (Task 2.3)
                     "whatsapp_qr" => {
                         logger
-                            .info(
+                            .debug(
                                 crate::logging::LogCategory::WhatsApp,
                                 "QR code generated".to_string(),
                             )
@@ -166,7 +198,7 @@ impl WhatsAppClient {
                     }
                     "whatsapp_disconnected" => {
                         logger
-                            .warning(
+                            .info(
                                 crate::logging::LogCategory::WhatsApp,
                                 "WhatsApp disconnected".to_string(),
                             )
@@ -178,7 +210,7 @@ impl WhatsAppClient {
                     }
                     "groups_result" => {
                         logger
-                            .info(
+                            .debug(
                                 crate::logging::LogCategory::WhatsApp,
                                 "Groups fetched successfully".to_string(),
                             )
@@ -187,7 +219,7 @@ impl WhatsAppClient {
                     }
                     "members_result" => {
                         logger
-                            .info(
+                            .debug(
                                 crate::logging::LogCategory::WhatsApp,
                                 "Members extracted successfully".to_string(),
                             )
@@ -196,7 +228,7 @@ impl WhatsAppClient {
                     }
                     "addition_result" => {
                         logger
-                            .info(
+                            .debug(
                                 crate::logging::LogCategory::WhatsApp,
                                 "Users added to group".to_string(),
                             )
@@ -208,7 +240,7 @@ impl WhatsAppClient {
                     }
                     "automation_finished" => {
                         logger
-                            .info(
+                            .debug(
                                 crate::logging::LogCategory::Automation,
                                 "Automation finished".to_string(),
                             )
@@ -241,9 +273,10 @@ impl WhatsAppClient {
                         }
                         let _ = app_handle.emit("whatsapp_error", message.data);
                     }
+                    // Changed unknown event logging from warning to debug (Task 2.1)
                     _ => {
                         logger
-                            .warning(
+                            .debug(
                                 crate::logging::LogCategory::General,
                                 format!("Unknown event from Node.js: {}", message.event),
                             )
@@ -254,6 +287,12 @@ impl WhatsAppClient {
         } else {
             // Fallback if logger is not available
             match message.event.as_str() {
+                "client_initializing" => {
+                    let _ = app_handle.emit("whatsapp_initializing", message.data);
+                }
+                "whatsapp_loading" => {
+                    let _ = app_handle.emit("whatsapp_loading", message.data);
+                }
                 "whatsapp_qr" => {
                     let _ = app_handle.emit("whatsapp_qr", message.data);
                 }
@@ -288,6 +327,8 @@ impl WhatsAppClient {
                     let _ = app_handle.emit("whatsapp_error", message.data);
                 }
                 _ => {
+                    // Changed from eprintln to debug-only output
+                    #[cfg(debug_assertions)]
                     eprintln!("Unknown event from Node.js: {}", message.event);
                 }
             }
