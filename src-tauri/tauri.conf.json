@@ -1,4 +1,5 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
   "build": {
     "beforeDevCommand": "bun dev",
     "beforeBuildCommand": "bun build",
@@ -7,31 +8,54 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["msi", "dmg", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "whatsapp-node/**/*": "./"
+    },
+    "externalBin": [],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
   },
-  "productName": "tauri-app",
-  "mainBinaryName": "tauri-app",
-  "version": "0.1.0",
-  "identifier": "com.tauri.app",
-  "plugins": {},
+  "productName": "WhatsApp Automation",
+  "mainBinaryName": "whatsapp-automation",
+  "version": "1.0.0",
+  "identifier": "com.whatsapp.automation",
+  "plugins": {
+    "shell": {
+      "open": false
+    }
+  },
   "app": {
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https: wss:; script-src 'self' 'wasm-unsafe-eval'"
     },
     "windows": [
       {
-        "title": "Tauri App",
-        "width": 800,
-        "height": 600,
+        "title": "WhatsApp Automation",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
         "useHttpsScheme": true
       }
-    ]
+    ],
+    "withGlobalTauri": false
   }
 }

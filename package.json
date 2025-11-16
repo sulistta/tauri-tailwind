@@ -1,18 +1,21 @@
 {
-    "name": "tauri-app",
-    "description": "A project template for creating a Tauri app with Vite, React, and Tailwind CSS.",
+    "name": "whatsapp-automation",
+    "description": "WhatsApp Automation Desktop Application - Manage groups, extract members, add users in bulk, and create custom automations",
     "keywords": [
+        "whatsapp",
+        "automation",
         "tauri",
         "vite",
         "react",
         "tailwindcss",
-        "ui",
-        "desktop"
+        "desktop",
+        "whatsapp-web",
+        "group-management"
     ],
     "version": "1.0.0",
     "author": {
-        "name": "MrLightful",
-        "url": "https://mrlightful.com"
+        "name": "WhatsApp Automation Team",
+        "url": "https://github.com/yourusername/whatsapp-automation"
     },
     "license": "MIT",
     "type": "module",
@@ -21,6 +24,8 @@
         "build": "tsc && vite build",
         "preview": "vite preview",
         "tauri": "tauri",
+        "tauri:build": "node scripts/pre-build.js && tauri build",
+        "tauri:build:debug": "node scripts/pre-build.js && tauri build --debug",
         "prepare": "husky",
         "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
         "format": "prettier --write ."
@@ -29,10 +34,14 @@
         "**/*": "prettier --write --ignore-unknown"
     },
     "dependencies": {
+        "@radix-ui/react-alert-dialog": "^1.1.15",
         "@radix-ui/react-slot": "^1.2.0",
+        "@radix-ui/react-switch": "^1.2.6",
         "@radix-ui/react-tooltip": "^1.2.8",
         "@tailwindcss/vite": "^4.1.16",
-        "@tauri-apps/api": "^2.9.0",
+        "@tauri-apps/api": "^2.8.0",
+        "@tauri-apps/plugin-dialog": "^2.4.2",
+        "@tauri-apps/plugin-fs": "^2.4.4",
         "@tauri-apps/plugin-process": "^2.3.1",
         "@tauri-apps/plugin-shell": "^2.3.3",
         "class-variance-authority": "^0.7.1",
@@ -42,13 +51,14 @@
         "react-dom": "^19.2.0",
         "react-error-boundary": "^6.0.0",
         "react-router": "^7.9.5",
+        "sonner": "^2.0.7",
         "tailwind-merge": "^3.3.1",
         "tailwindcss-animate": "^1.0.7",
         "zod": "^4.1.12"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.0",
-        "@tauri-apps/cli": "^2.9.2",
+        "@tauri-apps/cli": "^2.8.0",
         "@types/node": "^24.9.2",
         "@types/react": "^19.2.2",
         "@types/react-dom": "^19.2.2",

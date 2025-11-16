@@ -1,0 +1,23 @@
+# Exclude development and build artifacts from bundle
+target/
+node_modules/
+.git/
+.github/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Exclude whatsapp-node development files
+whatsapp-node/node_modules/
+whatsapp-node/.wwebjs_auth/
+whatsapp-node/.wwebjs_cache/
+whatsapp-node/session/
+whatsapp-node/*.log
+
+# Exclude test files
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+**/__tests__/
