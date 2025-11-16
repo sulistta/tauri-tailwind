@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { useWhatsApp } from '@/hooks/useWhatsApp'
+import { useWhatsAppContext } from '@/contexts/WhatsAppContext'
 import QRCodeViewer from '@/components/whatsapp/QRCodeViewer'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import { ErrorDisplay } from '@/components/shared/ErrorDisplay'
 
 export default function Connect() {
-    const { status, qrCode, connect, error, isRecovering } = useWhatsApp()
+    const { status, qrCode, connect, error, isRecovering } =
+        useWhatsAppContext()
     const navigate = useNavigate()
 
     // Automatic redirect to Dashboard on successful connection

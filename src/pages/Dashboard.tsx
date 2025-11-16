@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
-import { useWhatsApp } from '@/hooks/useWhatsApp'
+import { useWhatsAppContext } from '@/contexts/WhatsAppContext'
 import {
     Card,
     CardContent,
@@ -26,7 +26,7 @@ interface WhatsAppEvent {
 }
 
 export default function Dashboard() {
-    const { status, phoneNumber } = useWhatsApp()
+    const { status, phoneNumber } = useWhatsAppContext()
     const [recentEvents, setRecentEvents] = useState<WhatsAppEvent[]>([])
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [isTesting, setIsTesting] = useState(false)

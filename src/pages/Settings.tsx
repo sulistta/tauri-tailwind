@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useWhatsApp } from '@/hooks/useWhatsApp'
+import { useWhatsAppContext } from '@/contexts/WhatsAppContext'
 import { useAutomations } from '@/hooks/useAutomations'
 import { useSettings } from '@/hooks/useSettings'
 import {
@@ -25,7 +25,7 @@ import {
 import { LogOut, Zap, Info, Clock } from 'lucide-react'
 
 export default function Settings() {
-    const { status, phoneNumber } = useWhatsApp()
+    const { status, phoneNumber } = useWhatsAppContext()
     const { automations, toggleAutomation } = useAutomations()
     const { settings, updateSettings } = useSettings()
     const [isDisconnecting, setIsDisconnecting] = useState(false)
