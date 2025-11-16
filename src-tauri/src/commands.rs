@@ -386,6 +386,55 @@ pub fn is_initialization_locked(
     Ok(locked)
 }
 
+#[tauri::command]
+pub async fn logout_whatsapp(
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.logger.info(LogCategory::WhatsApp, "Logout requested".to_string()).await;
+    
+    // Get client from ConnectionManager
+    let client_arc = state.connection_manager.get_client().await;
+    
+    if let Some(client_arc) = client_arc {
+        let client_guard = client_arc.lock().await;
+        
+        if let Some(client) = client_guard.as_ref() {
+            // Send logout command to Node.js process
+            let command = serde_json::json!({
+                "type": "logout"
+            });
+            
+            match client.send_command(command).await {
+                Ok(_) => {
+                    state.logger.info(LogCategory::WhatsApp, "Logout command sent successfully".to_string()).await;
+                    
+                    // Clean up auth_info directory
+                    match client.cleanup_session() {
+                        Ok(_) => {
+                            state.logger.info(LogCategory::WhatsApp, "Session cleanup completed".to_string()).await;
+                        }
+                        Err(e) => {
+                            state.logger.warning(LogCategory::WhatsApp, format!("Session cleanup warning: {}", e)).await;
+                        }
+                    }
+                    
+                    Ok(())
+                }
+                Err(e) => {
+                    state.logger.error(LogCategory::WhatsApp, format!("Failed to logout: {}", e)).await;
+                    Err(e)
+                }
+            }
+        } else {
+            state.logger.warning(LogCategory::WhatsApp, "WhatsApp client not initialized, nothing to logout".to_string()).await;
+            Ok(())
+        }
+    } else {
+        state.logger.warning(LogCategory::WhatsApp, "WhatsApp client not initialized, nothing to logout".to_string()).await;
+        Ok(())
+    }
+}
+
 // ============================================================================
 // Logging Commands
 // ============================================================================

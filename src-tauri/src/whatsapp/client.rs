@@ -159,6 +159,15 @@ impl WhatsAppClient {
             tokio::spawn(async move {
                 match message.event.as_str() {
                     // New handlers for missing events (Task 2.1)
+                    "client_ready" => {
+                        logger
+                            .debug(
+                                crate::logging::LogCategory::WhatsApp,
+                                "Client ready and waiting for connection command".to_string(),
+                            )
+                            .await;
+                        // Don't emit state change - client is ready but not connected yet
+                    }
                     "client_initializing" => {
                         logger
                             .debug(
@@ -287,6 +296,9 @@ impl WhatsAppClient {
         } else {
             // Fallback if logger is not available
             match message.event.as_str() {
+                "client_ready" => {
+                    // Don't emit state change - client is ready but not connected yet
+                }
                 "client_initializing" => {
                     let _ = app_handle.emit("whatsapp_initializing", message.data);
                 }
@@ -388,21 +400,21 @@ impl WhatsAppClient {
         self.initialize().await
     }
 
-    pub fn check_session_exists(&self) -> Result<bool, String> {
-        // Get the path to the session directory
-        let session_path = if cfg!(debug_assertions) {
+    /// Get the path to the auth_info directory
+    fn get_auth_info_path(&self) -> Result<std::path::PathBuf, String> {
+        let auth_info_path = if cfg!(debug_assertions) {
             // Development mode
             let current = std::env::current_dir()
                 .map_err(|e| format!("Failed to get current directory: {}", e))?;
 
             // Check if we're already in src-tauri or in project root
             if current.ends_with("src-tauri") {
-                current.join("whatsapp-node").join("session")
+                current.join("whatsapp-node").join("auth_info")
             } else {
                 current
                     .join("src-tauri")
                     .join("whatsapp-node")
-                    .join("session")
+                    .join("auth_info")
             }
         } else {
             // Production mode - use resource directory
@@ -411,26 +423,68 @@ impl WhatsAppClient {
                 .path()
                 .resource_dir()
                 .map_err(|e| format!("Failed to get resource directory: {}", e))?;
-            resource_path.join("whatsapp-node").join("session")
+            resource_path.join("whatsapp-node").join("auth_info")
         };
 
-        // Check if session directory exists and contains session data
-        if !session_path.exists() {
-            return Ok(false);
+        Ok(auth_info_path)
+    }
+
+    /// Clean up the auth_info directory (used on logout)
+    pub fn cleanup_session(&self) -> Result<(), String> {
+        let auth_info_path = self.get_auth_info_path()?;
+
+        // Check if directory exists before attempting cleanup
+        if !auth_info_path.exists() {
+            // Directory doesn't exist, nothing to clean up
+            return Ok(());
         }
 
-        // Check for session subdirectory (whatsapp-web.js creates a nested session folder)
-        let session_data_path = session_path.join("session");
-        if !session_data_path.exists() {
-            return Ok(false);
-        }
-
-        // Check if the session directory has any files (indicating a saved session)
-        match std::fs::read_dir(&session_data_path) {
-            Ok(entries) => {
-                // If there are any entries, we consider the session to exist
-                Ok(entries.count() > 0)
+        // Attempt to remove the directory and all its contents
+        match std::fs::remove_dir_all(&auth_info_path) {
+            Ok(_) => {
+                #[cfg(debug_assertions)]
+                eprintln!("Successfully cleaned up auth_info directory");
+                Ok(())
             }
+            Err(e) => {
+                // Log the error but don't fail - the directory might be in use
+                eprintln!(
+                    "Warning: Failed to clean up auth_info directory: {}. Path: {}",
+                    e,
+                    auth_info_path.display()
+                );
+                
+                // Try to remove individual files as a fallback
+                if let Ok(entries) = std::fs::read_dir(&auth_info_path) {
+                    for entry in entries.flatten() {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
+                }
+                
+                // Return Ok even if cleanup partially failed - we did our best
+                Ok(())
+            }
+        }
+    }
+
+    pub fn check_session_exists(&self) -> Result<bool, String> {
+        // Get the path to the auth_info directory (Baileys auth state)
+        let auth_info_path = self.get_auth_info_path()?;
+
+        // Check if auth_info directory exists
+        if !auth_info_path.exists() {
+            return Ok(false);
+        }
+
+        // Check for creds.json file (Baileys stores credentials here)
+        let creds_path = auth_info_path.join("creds.json");
+        if !creds_path.exists() {
+            return Ok(false);
+        }
+
+        // Verify the creds.json file is not empty
+        match std::fs::metadata(&creds_path) {
+            Ok(metadata) => Ok(metadata.len() > 0),
             Err(_) => Ok(false),
         }
     }

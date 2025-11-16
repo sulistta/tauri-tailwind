@@ -17,21 +17,29 @@ export function useWhatsApp() {
     const [qrCode, setQrCode] = useState<string | null>(null)
     const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [wasConnected, setWasConnected] = useState(false)
 
     // Enable automatic connection recovery
-    const { isRecovering, resetRecovery } = useConnectionRecovery(
-        status === 'connected',
-        {
-            enabled: true,
-            maxAttempts: 3
-        }
-    )
+    // Only enable recovery if we were previously connected (not on first connection)
+    const isConnected = status === 'connected'
+    const shouldEnableRecovery =
+        wasConnected && (status === 'disconnected' || status === 'error')
+
+    const { isRecovering, resetRecovery } = useConnectionRecovery(isConnected, {
+        enabled: shouldEnableRecovery,
+        maxAttempts: 3
+    })
 
     // Initialize connection once on mount
     useEffect(() => {
         let mounted = true
+        let initialized = false
 
         const init = async () => {
+            // Prevent double initialization (React Strict Mode)
+            if (initialized) return
+            initialized = true
+
             try {
                 // Backend handles session check and initialization
                 await invoke('initialize_connection')
@@ -70,8 +78,14 @@ export function useWhatsApp() {
                         setPhoneNumber(state.phone_number || null)
                         setQrCode(state.qr_code || null)
 
+                        // Track if we've ever been connected
+                        if (state.status === 'connected') {
+                            setWasConnected(true)
+                        }
+
                         // Handle error with detailed information
                         if (state.status === 'error' && state.error) {
+                            console.error('WhatsApp error state:', state)
                             const whatsappError = new WhatsAppError(
                                 state.error,
                                 'CONNECTION_ERROR',
@@ -114,6 +128,7 @@ export function useWhatsApp() {
     const connect = useCallback(async () => {
         try {
             setError(null)
+            setWasConnected(false) // Reset on manual connect
             resetRecovery()
             await invoke('connect_whatsapp')
         } catch (err) {

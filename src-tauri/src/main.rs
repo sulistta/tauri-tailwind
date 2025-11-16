@@ -83,6 +83,18 @@ fn main() {
                 }
             });
             
+            // Listen for logged out events
+            let cm = connection_manager.clone();
+            app_handle.listen("whatsapp_logged_out", move |event| {
+                let cm = cm.clone();
+                let payload_str: &str = event.payload();
+                if let Ok(data) = serde_json::from_str::<serde_json::Value>(payload_str) {
+                    tauri::async_runtime::spawn(async move {
+                        cm.handle_state_event("whatsapp_logged_out", &data).await;
+                    });
+                }
+            });
+            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -93,6 +105,7 @@ fn main() {
             commands::get_recovery_info,
             commands::is_initializing,
             commands::is_initialization_locked,
+            commands::logout_whatsapp,
             commands::get_groups,
             commands::extract_group_members,
             commands::add_users_to_group,

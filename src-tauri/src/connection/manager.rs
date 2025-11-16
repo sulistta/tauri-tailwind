@@ -357,13 +357,31 @@ impl ConnectionManager {
             if let Some(client) = client_guard.as_ref() {
                 match timeout(Duration::from_secs(30), client.restart()).await {
                     Ok(Ok(_)) => {
-                        self.logger
-                            .info(
-                                LogCategory::WhatsApp,
-                                "WhatsApp client restarted successfully".to_string(),
-                            )
-                            .await;
-                        Ok(())
+                        // Send connect command to Node.js
+                        let connect_command = serde_json::json!({
+                            "type": "connect"
+                        });
+                        
+                        match client.send_command(connect_command).await {
+                            Ok(_) => {
+                                self.logger
+                                    .info(
+                                        LogCategory::WhatsApp,
+                                        "WhatsApp client restarted and connect command sent".to_string(),
+                                    )
+                                    .await;
+                                Ok(())
+                            }
+                            Err(e) => {
+                                self.logger
+                                    .error(
+                                        LogCategory::WhatsApp,
+                                        format!("Failed to send connect command: {}", e),
+                                    )
+                                    .await;
+                                Err(e)
+                            }
+                        }
                     }
                     Ok(Err(e)) => {
                         let error = ConnectionError::InitializationFailed {
@@ -410,14 +428,33 @@ impl ConnectionManager {
                 Err(error.user_message())
             }
         } else {
-            drop(client_guard);
-            self.logger
-                .debug(
-                    LogCategory::WhatsApp,
-                    "Client already running".to_string(),
-                )
-                .await;
-            Ok(())
+            // Client is already running, send connect command
+            let connect_command = serde_json::json!({
+                "type": "connect"
+            });
+            
+            match client.send_command(connect_command).await {
+                Ok(_) => {
+                    drop(client_guard);
+                    self.logger
+                        .debug(
+                            LogCategory::WhatsApp,
+                            "Connect command sent to running client".to_string(),
+                        )
+                        .await;
+                    Ok(())
+                }
+                Err(e) => {
+                    drop(client_guard);
+                    self.logger
+                        .error(
+                            LogCategory::WhatsApp,
+                            format!("Failed to send connect command: {}", e),
+                        )
+                        .await;
+                    Err(e)
+                }
+            }
         }
     }
 
@@ -721,6 +758,26 @@ impl ConnectionManager {
                 let mut metadata = self.metadata.lock().await;
                 metadata.qr_code = None;
                 drop(metadata);
+                
+                self.set_state(ConnectionState::Disconnected).await;
+            }
+            "whatsapp_logged_out" => {
+                self.logger
+                    .info(
+                        LogCategory::WhatsApp,
+                        "User logged out from WhatsApp".to_string(),
+                    )
+                    .await;
+                
+                // Clear QR code when logged out
+                let mut metadata = self.metadata.lock().await;
+                metadata.qr_code = None;
+                drop(metadata);
+                
+                // Clear session cache
+                let mut cache = self.session_cache.lock().await;
+                *cache = Some(false);
+                drop(cache);
                 
                 self.set_state(ConnectionState::Disconnected).await;
             }

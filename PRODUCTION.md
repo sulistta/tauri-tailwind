@@ -27,7 +27,8 @@ The following resources are included in the production bundle:
     - index.js - Main client entry point
     - operations/ - WhatsApp operations (getGroups, extractMembers, addToGroup)
     - package.json - Node.js dependencies
-    - node_modules/ - Installed dependencies (whatsapp-web.js, qrcode, puppeteer)
+    - node_modules/ - Installed dependencies (@whiskeysockets/baileys, qrcode, pino, @hapi/boom)
+    - auth_info/ - Session storage directory (created at runtime)
 
 2. **Application Icons** - Multi-platform icon set
     - Windows: icon.ico
@@ -279,7 +280,7 @@ When updating the version:
 ### Security Patches
 
 - Monitor Tauri security advisories
-- Update whatsapp-web.js regularly
+- Update @whiskeysockets/baileys regularly
 - Review and update CSP as needed
 - Test thoroughly after security updates
 

@@ -174,20 +174,23 @@ export function useConnectionRecovery(
             return
         }
 
-        // Start recovery when disconnected
-        if (enabled && !isConnected) {
-            // Wait a bit before starting recovery to avoid false positives
-            timeoutRef.current = setTimeout(() => {
-                // Initial recovery attempt
-                attemptReconnection()
-
-                // Set up interval to check if recovery should continue
-                // Backend handles backoff, we just periodically check
-                recoveryIntervalRef.current = setInterval(() => {
-                    attemptReconnection()
-                }, 5000) // Check every 5 seconds
-            }, 2000)
+        // Only start recovery if explicitly enabled (not during initialization)
+        if (!enabled) {
+            return
         }
+
+        // Start recovery when disconnected
+        // Wait a bit before starting recovery to avoid false positives
+        timeoutRef.current = setTimeout(() => {
+            // Initial recovery attempt
+            attemptReconnection()
+
+            // Set up interval to check if recovery should continue
+            // Backend handles backoff, we just periodically check
+            recoveryIntervalRef.current = setInterval(() => {
+                attemptReconnection()
+            }, 5000) // Check every 5 seconds
+        }, 2000)
 
         return () => {
             if (timeoutRef.current) {

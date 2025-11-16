@@ -2,6 +2,7 @@
 node_modules/
 
 # Session data (contains authentication tokens)
+auth_info/
 session/
 .wwebjs_auth/
 .wwebjs_cache/

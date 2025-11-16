@@ -97,7 +97,7 @@ Task 15 has been successfully completed. The Tauri application is now fully conf
 
 - Verifies whatsapp-node directory exists
 - Installs Node.js dependencies if missing
-- Validates critical dependencies (whatsapp-web.js, qrcode, puppeteer)
+- Validates critical dependencies (@whiskeysockets/baileys, qrcode, pino, @hapi/boom)
 - Cleans session data for fresh builds
 - Provides clear error messages for build issues
 
@@ -262,7 +262,7 @@ Before releasing, test the following on each platform:
 
 ✅ **Requirement 12.1** - Tauri backend compiles for Windows, macOS, and Linux
 ✅ **Requirement 12.2** - React frontend builds with Vite optimization
-✅ **Requirement 12.3** - Node.js runtime and whatsapp-web.js bundled
+✅ **Requirement 12.3** - Node.js runtime and Baileys bundled
 ✅ **Requirement 12.4** - Tauri plugins (shell, process, fs, dialog) included
 ✅ **Requirement 12.5** - Platform-specific installers configured (MSI, DMG, AppImage)
 

@@ -6,7 +6,7 @@ This document provides instructions for building the WhatsApp Automation applica
 
 ### All Platforms
 
-- Node.js 18+ (required for whatsapp-web.js)
+- Node.js 18+ (required for Baileys)
 - Bun (package manager)
 - Rust 1.70+ (for Tauri)
 
@@ -168,7 +168,7 @@ Verify file system permissions in `capabilities/migrated.json` include app data 
 
 ### Large Bundle Size
 
-The bundle includes Chromium (via Puppeteer) for WhatsApp Web. This is expected and necessary for functionality.
+The bundle includes Node.js dependencies for Baileys. The application is significantly smaller than browser-based solutions since it doesn't require Chromium/Puppeteer.
 
 ## Release Checklist
 

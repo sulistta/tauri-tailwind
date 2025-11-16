@@ -1,6 +1,19 @@
-# Manual Testing Guide - Architecture Refactor
+# Manual Testing Guide
 
-This guide provides step-by-step instructions for completing the manual tests required to fully verify the refactored WhatsApp connection architecture.
+This guide provides step-by-step instructions for manual testing of the WhatsApp Automation application.
+
+## Testing Guides
+
+### Baileys Migration Testing
+
+For comprehensive authentication and session persistence testing with Baileys, see:
+
+- **[Baileys Authentication & Session Test Plan](BAILEYS_AUTH_SESSION_TEST_PLAN.md)** - Complete test suite for Requirements 2.1-2.5 and 3.1-3.5
+- **[Baileys Multi-Device Support Test Plan](BAILEYS_MULTI_DEVICE_TEST_PLAN.md)** - Complete test suite for Requirements 11.1-11.5
+
+### Architecture Refactor Testing
+
+The following tests verify the refactored WhatsApp connection architecture:
 
 ## Prerequisites
 
@@ -30,11 +43,11 @@ Verify that the application correctly handles first-time initialization when no 
     # Navigate to project root
     cd D:\Projects\whats-ext
 
-    # Remove session directory
-    Remove-Item -Recurse -Force src-tauri\whatsapp-node\session\session
+    # Remove auth_info directory (Baileys session storage)
+    Remove-Item -Recurse -Force src-tauri\whatsapp-node\auth_info
 
     # Verify deletion
-    Test-Path src-tauri\whatsapp-node\session\session
+    Test-Path src-tauri\whatsapp-node\auth_info
     # Should return: False
     ```
 
@@ -80,12 +93,12 @@ Verify that the application correctly handles first-time initialization when no 
 8. **Verify Session Persistence**
 
     ```powershell
-    # Check that session was created
-    Test-Path src-tauri\whatsapp-node\session\session
+    # Check that auth_info directory was created
+    Test-Path src-tauri\whatsapp-node\auth_info
     # Should return: True
 
-    # List session files
-    Get-ChildItem src-tauri\whatsapp-node\session\session
+    # List session files (should see creds.json and sync keys)
+    Get-ChildItem src-tauri\whatsapp-node\auth_info
     ```
 
 ### Expected Results
@@ -116,7 +129,7 @@ Document your findings:
 - [ ] QR code displayed correctly: Yes/No
 - [ ] Connection established: Yes/No
 - [ ] Session persisted: Yes/No
-- [ ] Any issues encountered: ******\_\_\_******
+- [ ] Any issues encountered: **\*\***\_\_\_**\*\***
 
 ---
 
@@ -204,7 +217,7 @@ Document your findings:
 - [ ] No crashes or errors: Yes/No
 - [ ] UI remained responsive: Yes/No
 - [ ] Number of rapid clicks tested: \_\_\_
-- [ ] Any issues encountered: ******\_\_\_******
+- [ ] Any issues encountered: **\*\***\_\_\_**\*\***
 
 ---
 
@@ -332,7 +345,7 @@ Document your findings:
     - Disconnect to Attempt 1: \_\_\_ seconds
     - Attempt 1 to Attempt 2: \_\_\_ seconds
     - Attempt 2 to Attempt 3: \_\_\_ seconds
-- [ ] Any issues encountered: ******\_\_\_******
+- [ ] Any issues encountered: **\*\***\_\_\_**\*\***
 
 ---
 
@@ -403,10 +416,10 @@ Get-Process node
 Stop-Process -Id <PID> -Force
 
 # Check session exists
-Test-Path src-tauri\whatsapp-node\session\session
+Test-Path src-tauri\whatsapp-node\auth_info
 
 # Delete session
-Remove-Item -Recurse -Force src-tauri\whatsapp-node\session\session
+Remove-Item -Recurse -Force src-tauri\whatsapp-node\auth_info
 
 # View recent logs (if logging to file)
 Get-Content -Tail 50 logs\app.log
