@@ -1,6 +1,6 @@
 {
-    "name": "tauri-app",
-    "description": "A project template for creating a Tauri app with Vite, React, and Tailwind CSS.",
+    "name": "site2react",
+    "description": "Desktop MVP that imports static websites and turns them into minimal React exports.",
     "keywords": [
         "tauri",
         "vite",
@@ -29,12 +29,18 @@
         "**/*": "prettier --write --ignore-unknown"
     },
     "dependencies": {
+        "@codesandbox/sandpack-react": "^2.20.0",
+        "@erikwithuhk/html-to-jsx": "^1.0.6",
         "@radix-ui/react-slot": "^1.2.0",
         "@radix-ui/react-tooltip": "^1.2.8",
         "@tailwindcss/vite": "^4.1.16",
         "@tauri-apps/api": "^2.9.0",
+        "@tauri-apps/plugin-fs": "^2.4.5",
+        "@tauri-apps/plugin-http": "^2.5.7",
         "@tauri-apps/plugin-process": "^2.3.1",
         "@tauri-apps/plugin-shell": "^2.3.3",
+        "@tauri-apps/plugin-store": "^2.4.2",
+        "cheerio": "^1.2.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^0.552.0",

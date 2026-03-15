@@ -1,14 +1,37 @@
 {
   "identifier": "migrated",
-  "description": "permissions that were migrated from v1",
+  "description": "Main window permissions for Site2React local storage and import pipeline",
   "local": true,
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
-    "shell:allow-open",
+    "process:default",
     "shell:default",
-    "process:default"
+    "shell:allow-open",
+    "store:default",
+    "fs:default",
+    "fs:scope-applocaldata-recursive",
+    "fs:allow-applocaldata-read-recursive",
+    "fs:allow-applocaldata-write-recursive",
+    "fs:allow-applocaldata-meta-recursive",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-exists",
+    "fs:allow-remove",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "http://*/*"
+        },
+        {
+          "url": "https://*/*"
+        }
+      ]
+    }
   ]
 }

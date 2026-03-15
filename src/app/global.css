@@ -42,24 +42,24 @@
 
 :root {
     --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    --background: oklch(0.97 0.009 85.61);
+    --foreground: oklch(0.24 0.01 67.47);
+    --card: oklch(1 0 0 / 80%);
+    --card-foreground: oklch(0.2 0.01 67.47);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --popover-foreground: oklch(0.24 0.01 67.47);
+    --primary: oklch(0.34 0.08 191.81);
+    --primary-foreground: oklch(0.98 0.003 247.86);
+    --secondary: oklch(0.94 0.01 84.59);
+    --secondary-foreground: oklch(0.27 0.01 67.47);
+    --muted: oklch(0.94 0.01 84.59);
+    --muted-foreground: oklch(0.5 0.01 67.47);
+    --accent: oklch(0.93 0.02 180.12);
+    --accent-foreground: oklch(0.24 0.01 67.47);
+    --destructive: oklch(0.62 0.21 24.74);
+    --border: oklch(0.9 0.008 85.61);
+    --input: oklch(0.91 0.008 85.61);
+    --ring: oklch(0.59 0.1 189.11);
     --chart-1: oklch(0.646 0.222 41.116);
     --chart-2: oklch(0.6 0.118 184.704);
     --chart-3: oklch(0.398 0.07 227.392);
@@ -114,13 +114,17 @@
         @apply border-border outline-ring/50;
     }
     html {
-        /* For native desktop app feeling disallow text selection. */
-        @apply select-none;
-
-        /* Disable overscroll/bouncing */
         @apply h-full overscroll-none;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply min-h-full bg-background text-foreground antialiased;
+
+        font-family: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
+    }
+    #root {
+        @apply min-h-screen;
+    }
+    ::selection {
+        @apply bg-teal-500/20 text-zinc-950;
     }
 }
