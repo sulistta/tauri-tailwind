@@ -132,8 +132,27 @@ export function ProjectPreview({
     )
 
     const shellClassName = cn(
-        'space-y-4',
-        isFullscreen && 'fixed inset-0 z-50 overflow-auto bg-white p-4 sm:p-6'
+        'flex flex-col gap-4',
+        isFullscreen && 'h-full w-full bg-white p-4 sm:p-6'
+    )
+
+    const previewFrameClassName = cn(
+        'w-full rounded-[24px] border border-zinc-200 bg-white',
+        isFullscreen ? 'h-full flex-1 min-h-0' : 'min-h-[560px]'
+    )
+
+    const previewSurfaceClassName = cn(
+        'overflow-hidden rounded-[24px] border border-zinc-200 bg-white',
+        isFullscreen && 'flex-1 min-h-0'
+    )
+
+    const sandpackLayoutClassName = cn(
+        'bg-white',
+        isFullscreen ? 'h-full min-h-0' : 'min-h-[560px]'
+    )
+
+    const sandpackPreviewClassName = cn(
+        isFullscreen ? 'h-full min-h-0' : 'min-h-[560px]'
     )
 
     if (!artifacts?.appJsx.trim()) {
@@ -147,7 +166,12 @@ export function ProjectPreview({
                     </div>
                 ) : null}
 
-                <div className="flex min-h-[560px] items-center justify-center rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50/80 px-6 text-center text-sm leading-6 text-zinc-500">
+                <div
+                    className={cn(
+                        'flex items-center justify-center rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50/80 px-6 text-center text-sm leading-6 text-zinc-500',
+                        isFullscreen ? 'flex-1 min-h-0' : 'min-h-[560px]'
+                    )}
+                >
                     {project.status === 'processing'
                         ? 'Processando o site e preparando o preview...'
                         : 'Ainda nao ha artefatos suficientes para gerar o preview.'}
@@ -174,7 +198,7 @@ export function ProjectPreview({
                 </div>
 
                 <iframe
-                    className="min-h-[560px] w-full rounded-[24px] border border-zinc-200 bg-white"
+                    className={previewFrameClassName}
                     srcDoc={iframePreviewDocument}
                     sandbox="allow-forms allow-modals allow-popups allow-same-origin"
                     title={`Fallback preview for ${project.title}`}
@@ -193,7 +217,7 @@ export function ProjectPreview({
                 </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-[24px] border border-zinc-200 bg-white">
+            <div className={previewSurfaceClassName}>
                 <SandpackProvider
                     template="vite-react"
                     files={{
@@ -212,14 +236,14 @@ export function ProjectPreview({
                     }}
                 >
                     <SandpackErrorBridge onErrorChange={handleErrorChange} />
-                    <SandpackLayout className="min-h-[560px] bg-white">
+                    <SandpackLayout className={sandpackLayoutClassName}>
                         <SandpackPreview
                             showNavigator={false}
                             showSandpackErrorOverlay
                             showOpenInCodeSandbox={false}
                             showOpenNewtab={false}
                             showRefreshButton
-                            className="min-h-[560px]"
+                            className={sandpackPreviewClassName}
                         />
                     </SandpackLayout>
                 </SandpackProvider>
