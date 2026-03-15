@@ -34,6 +34,53 @@ const SANITIZED_ATTRIBUTE_NAMES = new Set([
     'ping'
 ])
 
+const LAZY_SOURCE_ATTRIBUTE_NAMES = [
+    'data-src',
+    'data-lazy-src',
+    'data-lazy',
+    'data-original',
+    'data-url',
+    'data-echo',
+    'data-flickity-lazyload',
+    'data-pin-media'
+]
+
+const LAZY_SRCSET_ATTRIBUTE_NAMES = [
+    'data-srcset',
+    'data-lazy-srcset',
+    'data-original-set'
+]
+
+const LAZY_POSTER_ATTRIBUTE_NAMES = ['data-poster', 'data-lazy-poster']
+
+const LAZY_BACKGROUND_ATTRIBUTE_NAMES = [
+    'data-bg',
+    'data-background',
+    'data-background-image',
+    'data-lazy-background',
+    'data-lazy-background-image'
+]
+
+const PLACEHOLDER_IMAGE_MARKERS = [
+    'blank.gif',
+    'spacer.gif',
+    'pixel.gif',
+    'transparent.gif',
+    '/placeholder',
+    'placeholder.com'
+]
+
+type ParsedHtmlNode = {
+    attribs?: Record<string, unknown>
+    name?: string
+}
+
+interface MutableHtmlNode {
+    attr(name: string): string | undefined
+    attr(name: string, value: string): unknown
+    removeAttr(name: string): unknown
+}
+
 let cheerioLoadPromise: Promise<
     (html: string) => ReturnType<typeof import('cheerio').load>
 > | null = null
@@ -126,6 +173,166 @@ function rewriteCssAssetUrls(css: string, baseUrl: string) {
     )
 }
 
+function getNormalizedAttributes(element: ParsedHtmlNode) {
+    if (!('attribs' in element) || !element.attribs) {
+        return {}
+    }
+
+    return Object.entries(element.attribs).reduce<Record<string, string>>(
+        (attributes, [attributeName, attributeValue]) => {
+            attributes[attributeName.toLowerCase()] = String(attributeValue)
+            return attributes
+        },
+        {}
+    )
+}
+
+function getFirstMatchingAttributeValue(
+    attributes: Record<string, string>,
+    attributeNames: string[]
+) {
+    return attributeNames
+        .map((attributeName) => attributes[attributeName]?.trim())
+        .find(Boolean)
+}
+
+function isLikelyPlaceholderAsset(value: string) {
+    const normalizedValue = value.trim().toLowerCase()
+
+    if (!normalizedValue) {
+        return true
+    }
+
+    if (
+        normalizedValue === '#' ||
+        normalizedValue === 'about:blank' ||
+        normalizedValue.startsWith('javascript:')
+    ) {
+        return true
+    }
+
+    if (
+        normalizedValue.startsWith('data:image/gif;base64') ||
+        normalizedValue.includes('r0lgodlh')
+    ) {
+        return true
+    }
+
+    if (
+        normalizedValue.startsWith('data:image/png;base64') &&
+        normalizedValue.length < 256
+    ) {
+        return true
+    }
+
+    return PLACEHOLDER_IMAGE_MARKERS.some((marker) =>
+        normalizedValue.includes(marker)
+    )
+}
+
+function hasRenderableAssetValue(value: string | undefined) {
+    if (!value?.trim()) {
+        return false
+    }
+
+    return !isLikelyPlaceholderAsset(value)
+}
+
+function getPrimaryUrlFromSrcSet(value: string) {
+    return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => entry.split(/\s+/, 2)[0])
+        .find(Boolean)
+}
+
+function appendStyleDeclaration(styleValue: string, declaration: string) {
+    const normalizedStyle = styleValue.trim()
+
+    if (!normalizedStyle) {
+        return declaration
+    }
+
+    return normalizedStyle.endsWith(';')
+        ? `${normalizedStyle} ${declaration}`
+        : `${normalizedStyle}; ${declaration}`
+}
+
+function normalizeLazyAssetAttributes(
+    cheerioElement: MutableHtmlNode,
+    element: ParsedHtmlNode,
+    pageUrl: string
+) {
+    const attributes = getNormalizedAttributes(element)
+
+    const lazySrc = getFirstMatchingAttributeValue(
+        attributes,
+        LAZY_SOURCE_ATTRIBUTE_NAMES
+    )
+    const lazySrcSet = getFirstMatchingAttributeValue(
+        attributes,
+        LAZY_SRCSET_ATTRIBUTE_NAMES
+    )
+    const lazyPoster = getFirstMatchingAttributeValue(
+        attributes,
+        LAZY_POSTER_ATTRIBUTE_NAMES
+    )
+    const lazyBackground = getFirstMatchingAttributeValue(
+        attributes,
+        LAZY_BACKGROUND_ATTRIBUTE_NAMES
+    )
+
+    if (lazySrc && !hasRenderableAssetValue(cheerioElement.attr('src'))) {
+        cheerioElement.attr('src', absolutizeUrl(lazySrc, pageUrl))
+    }
+
+    if (lazySrcSet && !hasRenderableAssetValue(cheerioElement.attr('srcset'))) {
+        cheerioElement.attr('srcset', rewriteSrcSet(lazySrcSet, pageUrl))
+    }
+
+    if (
+        lazySrcSet &&
+        element.name === 'img' &&
+        !hasRenderableAssetValue(cheerioElement.attr('src'))
+    ) {
+        const primarySrcCandidate = getPrimaryUrlFromSrcSet(lazySrcSet)
+
+        if (primarySrcCandidate) {
+            cheerioElement.attr(
+                'src',
+                absolutizeUrl(primarySrcCandidate, pageUrl)
+            )
+        }
+    }
+
+    if (lazyPoster && !hasRenderableAssetValue(cheerioElement.attr('poster'))) {
+        cheerioElement.attr('poster', absolutizeUrl(lazyPoster, pageUrl))
+    }
+
+    if (lazyBackground) {
+        const currentStyle = cheerioElement.attr('style') ?? ''
+
+        if (!/background(?:-image)?\s*:/.test(currentStyle)) {
+            const backgroundUrl = absolutizeUrl(lazyBackground, pageUrl)
+
+            if (backgroundUrl && backgroundUrl !== '#') {
+                cheerioElement.attr(
+                    'style',
+                    appendStyleDeclaration(
+                        currentStyle,
+                        `background-image: url("${backgroundUrl}")`
+                    )
+                )
+            }
+        }
+    }
+
+    if (lazySrc || lazySrcSet || lazyPoster) {
+        cheerioElement.removeAttr('loading')
+    }
+}
+
 function getProjectArtifactPaths(projectId: string) {
     return {
         rawHtml: `${PROJECTS_DIRECTORY}/${projectId}/${PROJECT_FILE_PATHS.rawHtml}`,
@@ -158,28 +365,44 @@ async function fetchHtmlDocument(url: string) {
 async function collectStylesheetLinks(rawHtml: string, pageUrl: string) {
     const load = await getCheerioLoad()
     const $ = load(rawHtml)
+    const seenStylesheetUrls = new Set<string>()
 
-    return $('link[href]')
+    return $('link[href], link[data-href]')
         .toArray()
         .flatMap((element) => {
-            const relValue = ($(element).attr('rel') ?? '').toLowerCase()
+            const relValue = ($(element).attr('rel') ?? '').toLowerCase().trim()
+            const asValue = ($(element).attr('as') ?? '').toLowerCase().trim()
+            const relTokens = relValue.split(/\s+/).filter(Boolean)
 
-            if (!relValue.includes('stylesheet')) {
+            if (
+                !relTokens.includes('stylesheet') &&
+                !(relTokens.includes('preload') && asValue === 'style')
+            ) {
                 return []
             }
 
-            const href = $(element).attr('href')?.trim()
+            const href =
+                $(element).attr('href')?.trim() ??
+                $(element).attr('data-href')?.trim()
 
             if (!href) {
                 return []
             }
+
+            const resolvedUrl = absolutizeUrl(href, pageUrl)
+
+            if (!resolvedUrl || seenStylesheetUrls.has(resolvedUrl)) {
+                return []
+            }
+
+            seenStylesheetUrls.add(resolvedUrl)
 
             return [
                 {
                     id: crypto.randomUUID(),
                     source: 'external' as const,
                     href,
-                    resolvedUrl: absolutizeUrl(href, pageUrl),
+                    resolvedUrl,
                     success: false,
                     size: 0
                 }
@@ -220,6 +443,12 @@ async function sanitizeHtml(rawHtml: string, pageUrl: string) {
 
     $('img').each((_, element) => {
         const imageElement = $(element)
+        normalizeLazyAssetAttributes(
+            imageElement as unknown as MutableHtmlNode,
+            element,
+            pageUrl
+        )
+
         const width = imageElement.attr('width')
         const height = imageElement.attr('height')
         const source = imageElement.attr('src') ?? ''
@@ -235,10 +464,21 @@ async function sanitizeHtml(rawHtml: string, pageUrl: string) {
         }
     })
 
+    $(
+        'source, video, audio, image, use, [data-src], [data-srcset], [data-bg], [data-background], [data-background-image], [data-lazy-background], [data-lazy-background-image], [data-lazy-src], [data-lazy-srcset], [data-original]'
+    )
+        .toArray()
+        .forEach((element) => {
+            normalizeLazyAssetAttributes(
+                $(element) as unknown as MutableHtmlNode,
+                element as ParsedHtmlNode,
+                pageUrl
+            )
+        })
+
     $('*').each((_, element) => {
         const cheerioElement = $(element)
-        const attributes =
-            'attribs' in element && element.attribs ? element.attribs : {}
+        const attributes = getNormalizedAttributes(element as ParsedHtmlNode)
 
         Object.entries(attributes).forEach(
             ([attributeName, attributeValue]) => {
@@ -253,7 +493,10 @@ async function sanitizeHtml(rawHtml: string, pageUrl: string) {
                     return
                 }
 
-                if (normalizedAttribute === 'href') {
+                if (
+                    normalizedAttribute === 'href' ||
+                    normalizedAttribute === 'xlink:href'
+                ) {
                     cheerioElement.attr(
                         attributeName,
                         absolutizeUrl(normalizedValue, pageUrl)
