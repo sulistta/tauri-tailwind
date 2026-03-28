@@ -5,24 +5,10 @@ import pluginReact from 'eslint-plugin-react'
 import eslintConfigPrettier from 'eslint-config-prettier'
 
 export default [
-    {
-        ignores: ['dist/**', 'src-tauri/target/**']
-    },
     { files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'] },
     { languageOptions: { globals: globals.browser } },
     pluginJs.configs.recommended,
     ...tseslint.configs.recommended,
-    {
-        ...pluginReact.configs.flat.recommended,
-        settings: {
-            react: {
-                version: 'detect'
-            }
-        },
-        rules: {
-            ...pluginReact.configs.flat.recommended.rules,
-            'react/react-in-jsx-scope': 'off'
-        }
-    },
+    pluginReact.configs.flat.recommended,
     eslintConfigPrettier
 ]
