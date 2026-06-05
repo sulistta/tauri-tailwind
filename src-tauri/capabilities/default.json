@@ -1,0 +1,11 @@
+{
+  "identifier": "default",
+  "description": "Permite que a janela principal invoque os comandos de simulação local expostos pelo backend Tauri.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "process:default"
+  ]
+}
