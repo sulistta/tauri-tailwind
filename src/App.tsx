@@ -3,9 +3,33 @@ import { invoke } from '@tauri-apps/api/core'
 
 import './app/global.css'
 
-type ProcessProfile = {
+type GameExecutable = {
+    arguments?: string
+    is_launcher?: boolean
     name: string
+    os: string
+}
+
+type GameListItem = {
+    aliases?: string[]
+    executables?: GameExecutable[]
+    hook?: boolean
+    id: string
+    name: string
+    overlay?: boolean
+    themes?: string[]
+}
+
+type ProcessProfile = {
+    aliases: string[]
     description: string
+    executableName: string
+    gameName: string
+    hook: boolean
+    id: string
+    overlay: boolean
+    processName: string
+    themes: string[]
 }
 
 type SimulationStatus = {
@@ -15,25 +39,17 @@ type SimulationStatus = {
     executable_path: string | null
 }
 
-const LOCAL_PROFILES: ProcessProfile[] = [
+const FALLBACK_PROFILES: ProcessProfile[] = [
     {
-        name: 'processo_teste',
-        description:
-            'Perfil genérico para validar coleta e auditoria de processos.'
-    },
-    {
-        name: 'telemetry_agent',
-        description:
-            'Simula um agente local de telemetria com footprint mínimo.'
-    },
-    {
-        name: 'audit_worker',
-        description:
-            'Processo ocioso para testes de inventário e monitoramento.'
-    },
-    {
-        name: 'backup_probe',
-        description: 'Nome candidato para simular serviços auxiliares locais.'
+        aliases: [],
+        description: 'Perfil local de fallback para validação da simulação.',
+        executableName: 'processo_teste',
+        gameName: 'Processo de Teste',
+        hook: false,
+        id: 'fallback-processo-teste',
+        overlay: false,
+        processName: 'processo_teste',
+        themes: ['Auditoria']
     }
 ]
 
@@ -44,46 +60,94 @@ const INACTIVE_STATUS: SimulationStatus = {
     executable_path: null
 }
 
+const VISIBLE_PROFILE_LIMIT = 80
+
 function App() {
-    const [profiles, setProfiles] = useState<ProcessProfile[]>(LOCAL_PROFILES)
-    const [selectedName, setSelectedName] = useState(LOCAL_PROFILES[0].name)
+    const [profiles, setProfiles] =
+        useState<ProcessProfile[]>(FALLBACK_PROFILES)
+    const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
+        FALLBACK_PROFILES[0].id
+    )
+    const [selectedName, setSelectedName] = useState(
+        FALLBACK_PROFILES[0].processName
+    )
     const [status, setStatus] = useState<SimulationStatus>(INACTIVE_STATUS)
     const [isLoading, setIsLoading] = useState(false)
-    const [message, setMessage] = useState(
-        'Selecione um perfil e inicie uma simulação local.'
-    )
+    const [message, setMessage] = useState('Carregando public/gamelist.json...')
     const [error, setError] = useState<string | null>(null)
+    const [search, setSearch] = useState('')
 
     const selectedProfile = useMemo(
         () =>
-            profiles.find((profile) => profile.name === selectedName) ??
-            profiles[0],
-        [profiles, selectedName]
+            profiles.find((profile) => profile.id === selectedProfileId) ??
+            null,
+        [profiles, selectedProfileId]
     )
+
+    const filteredProfiles = useMemo(() => {
+        const query = search.trim().toLowerCase()
+
+        if (!query) {
+            return profiles
+        }
+
+        return profiles.filter((profile) =>
+            [
+                profile.gameName,
+                profile.processName,
+                profile.executableName,
+                ...profile.aliases,
+                ...profile.themes
+            ]
+                .join(' ')
+                .toLowerCase()
+                .includes(query)
+        )
+    }, [profiles, search])
+
+    const visibleProfiles = filteredProfiles.slice(0, VISIBLE_PROFILE_LIMIT)
 
     useEffect(() => {
         let isMounted = true
 
-        async function loadProfiles() {
+        async function loadGameList() {
             try {
-                const remoteProfiles =
-                    await invoke<ProcessProfile[]>('fetch_profile_list')
-                if (isMounted && remoteProfiles.length > 0) {
-                    setProfiles(remoteProfiles)
-                    setSelectedName(remoteProfiles[0].name)
-                    setMessage('Perfis carregados. Pronto para simular.')
+                const response = await fetch('/gamelist.json')
+
+                if (!response.ok) {
+                    throw new Error(
+                        `falha ao carregar /gamelist.json: HTTP ${response.status}`
+                    )
+                }
+
+                const games = (await response.json()) as GameListItem[]
+                const nextProfiles = mapGameListToProfiles(games)
+
+                if (nextProfiles.length === 0) {
+                    throw new Error(
+                        'public/gamelist.json não contém executáveis válidos'
+                    )
+                }
+
+                if (isMounted) {
+                    setProfiles(nextProfiles)
+                    setSelectedProfileId(nextProfiles[0].id)
+                    setSelectedName(nextProfiles[0].processName)
+                    setMessage(
+                        `${nextProfiles.length} perfis carregados de public/gamelist.json.`
+                    )
                 }
             } catch (loadError) {
                 if (isMounted) {
                     setError(formatError(loadError))
                     setMessage(
-                        'Usando perfis locais porque a lista remota não foi carregada.'
+                        'Usando perfil de fallback porque public/gamelist.json não foi carregado.'
                     )
                 }
             }
         }
 
-        void loadProfiles()
+        void loadGameList()
 
         return () => {
             isMounted = false
@@ -127,21 +191,27 @@ function App() {
         }
     }
 
+    function selectProfile(profile: ProcessProfile) {
+        setSelectedProfileId(profile.id)
+        setSelectedName(profile.processName)
+    }
+
     return (
         <main className="min-h-screen bg-slate-950 text-slate-100">
-            <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-8">
+            <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-6 py-8">
                 <header className="flex flex-col gap-3 border-b border-white/10 pb-6 md:flex-row md:items-end md:justify-between">
                     <div>
                         <p className="text-sm font-medium uppercase tracking-[0.35em] text-blue-300">
                             Local Security Audit Lab
                         </p>
                         <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
-                            Simulador de Processos Linux
+                            Simulador de Processos por GameList
                         </h1>
                         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-                            Crie um subprocesso renomeado que entra em idle
-                            daemon com thread estacionada, sem webview e com
-                            consumo estável próximo de 0% de CPU.
+                            Os candidatos agora vêm diretamente de{' '}
+                            <strong>public/gamelist.json</strong>. O app extrai
+                            o executável principal de cada jogo e usa esse nome
+                            para criar o processo idle.
                         </p>
                     </div>
 
@@ -170,26 +240,52 @@ function App() {
                     </div>
                 </header>
 
-                <section className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+                <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
                     <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-black/30">
-                        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                             <div>
                                 <h2 className="text-xl font-semibold">
-                                    Perfis candidatos
+                                    Jogos em public/gamelist.json
                                 </h2>
                                 <p className="text-sm text-slate-400">
-                                    Selecione o nome de arquivo que será usado
-                                    pela cópia temporária do binário.
+                                    Selecione um jogo para usar o nome do
+                                    executável como processo simulado.
                                 </p>
                             </div>
-                            <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs text-blue-200">
-                                {profiles.length} perfis
+                            <div className="min-w-64">
+                                <label
+                                    className="text-xs uppercase tracking-[0.25em] text-slate-500"
+                                    htmlFor="search"
+                                >
+                                    Buscar
+                                </label>
+                                <input
+                                    className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-blue-300/70 focus:ring-4 focus:ring-blue-500/10"
+                                    disabled={isLoading || status.active}
+                                    id="search"
+                                    onChange={(event) =>
+                                        setSearch(event.target.value)
+                                    }
+                                    placeholder="Nome, executável ou tema"
+                                    value={search}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                            <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-200">
+                                {profiles.length} perfis carregados
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
+                                exibindo {visibleProfiles.length} de{' '}
+                                {filteredProfiles.length}
                             </span>
                         </div>
 
-                        <div className="grid gap-3 md:grid-cols-2">
-                            {profiles.map((profile) => {
-                                const isSelected = profile.name === selectedName
+                        <div className="grid max-h-[38rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+                            {visibleProfiles.map((profile) => {
+                                const isSelected =
+                                    profile.id === selectedProfileId
 
                                 return (
                                     <button
@@ -199,44 +295,35 @@ function App() {
                                                 : 'border-white/10 bg-white/[0.03]'
                                         }`}
                                         disabled={isLoading || status.active}
-                                        key={profile.name}
-                                        onClick={() =>
-                                            setSelectedName(profile.name)
-                                        }
+                                        key={profile.id}
+                                        onClick={() => selectProfile(profile)}
                                         type="button"
                                     >
-                                        <div className="font-mono text-sm font-semibold text-blue-100">
-                                            {profile.name}
+                                        <div className="line-clamp-1 text-sm font-semibold text-slate-100">
+                                            {profile.gameName}
                                         </div>
-                                        <p className="mt-2 text-sm leading-5 text-slate-400">
+                                        <div className="mt-2 break-all font-mono text-xs font-semibold text-blue-100">
+                                            {profile.processName}
+                                        </div>
+                                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">
                                             {profile.description}
                                         </p>
+                                        <div className="mt-3 flex flex-wrap gap-1">
+                                            {profile.themes
+                                                .slice(0, 3)
+                                                .map((theme) => (
+                                                    <span
+                                                        className="rounded-full bg-slate-800 px-2 py-0.5 text-[0.65rem] text-slate-300"
+                                                        key={`${profile.id}-${theme}`}
+                                                    >
+                                                        {theme}
+                                                    </span>
+                                                ))}
+                                        </div>
                                     </button>
                                 )
                             })}
                         </div>
-
-                        <label
-                            className="mt-5 block text-sm font-medium text-slate-300"
-                            htmlFor="target-name"
-                        >
-                            Nome customizado do processo
-                        </label>
-                        <input
-                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-blue-300/70 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
-                            disabled={isLoading || status.active}
-                            id="target-name"
-                            onChange={(event) =>
-                                setSelectedName(event.target.value)
-                            }
-                            placeholder="processo_teste"
-                            spellCheck={false}
-                            value={selectedName}
-                        />
-                        <p className="mt-2 text-xs text-slate-500">
-                            Permitido no backend: letras, números, ponto, hífen
-                            e underscore.
-                        </p>
                     </div>
 
                     <aside className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-black/30">
@@ -251,19 +338,49 @@ function App() {
 
                         <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                             <InfoRow
-                                label="Perfil"
-                                value={selectedProfile?.name ?? selectedName}
+                                label="Jogo"
+                                value={
+                                    selectedProfile?.gameName ?? 'Customizado'
+                                }
+                            />
+                            <InfoRow
+                                label="Executável original"
+                                value={selectedProfile?.executableName ?? '—'}
+                                mono
                             />
                             <InfoRow
                                 label="PID"
                                 value={status.pid?.toString() ?? '—'}
                             />
                             <InfoRow
-                                label="Binário"
+                                label="Binário temporário"
                                 value={status.executable_path ?? '—'}
                                 mono
                             />
                         </div>
+
+                        <label
+                            className="mt-5 block text-sm font-medium text-slate-300"
+                            htmlFor="target-name"
+                        >
+                            Nome do processo a simular
+                        </label>
+                        <input
+                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-blue-300/70 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                            disabled={isLoading || status.active}
+                            id="target-name"
+                            onChange={(event) => {
+                                setSelectedProfileId(null)
+                                setSelectedName(event.target.value)
+                            }}
+                            placeholder="game.exe"
+                            spellCheck={false}
+                            value={selectedName}
+                        />
+                        <p className="mt-2 text-xs text-slate-500">
+                            Nomes vindos do gamelist são normalizados para
+                            letras, números, ponto, hífen e underscore.
+                        </p>
 
                         <div className="mt-6 grid gap-3">
                             <button
@@ -306,6 +423,80 @@ function App() {
             </div>
         </main>
     )
+}
+
+function mapGameListToProfiles(games: GameListItem[]) {
+    return games.flatMap((game, index) => {
+        const executable = pickExecutable(game.executables)
+
+        if (!executable) {
+            return []
+        }
+
+        const processName = toSafeProcessName(executable.name, game.id)
+        const themes = game.themes ?? []
+        const aliases = game.aliases ?? []
+
+        return [
+            {
+                aliases,
+                description: buildDescription(game, executable, themes),
+                executableName: executable.name,
+                gameName: game.name,
+                hook: Boolean(game.hook),
+                id: `${game.id}-${index}`,
+                overlay: Boolean(game.overlay),
+                processName,
+                themes
+            }
+        ]
+    })
+}
+
+function pickExecutable(executables: GameExecutable[] | undefined) {
+    if (!executables || executables.length === 0) {
+        return null
+    }
+
+    return (
+        executables.find(
+            (executable) => executable.os === 'win32' && !executable.is_launcher
+        ) ??
+        executables.find((executable) => !executable.is_launcher) ??
+        executables[0]
+    )
+}
+
+function buildDescription(
+    game: GameListItem,
+    executable: GameExecutable,
+    themes: string[]
+) {
+    const flags = [game.hook ? 'hook' : null, game.overlay ? 'overlay' : null]
+        .filter(Boolean)
+        .join(' / ')
+    const themeText =
+        themes.length > 0
+            ? themes.slice(0, 4).join(', ')
+            : 'sem temas cadastrados'
+    const flagText = flags ? ` Recursos: ${flags}.` : ''
+
+    return `Executável base: ${executable.name}. Temas: ${themeText}.${flagText}`
+}
+
+function toSafeProcessName(rawName: string, gameId: string) {
+    const basename =
+        rawName.replace(/^>+/, '').split(/[\\/]/).pop()?.trim() ?? ''
+    const asciiOnly = Array.from(basename.normalize('NFKD'))
+        .filter((char) => char.charCodeAt(0) <= 127)
+        .join('')
+    const normalized = asciiOnly
+        .replace(/[^a-zA-Z0-9._-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^[_.-]+|[_.-]+$/g, '')
+        .slice(0, 80)
+
+    return normalized || `game_${gameId}`.slice(0, 80)
 }
 
 function InfoRow({

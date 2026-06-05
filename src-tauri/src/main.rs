@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     fs,
     path::PathBuf,
@@ -17,26 +17,7 @@ const IDLE_DAEMON_FLAG: &str = "--idle-daemon";
 /// Raiz controlada pelo app para os binários temporários simulados.
 const TEMP_ROOT: &str = "/tmp/process_simulator";
 
-/// URL pública esperada para perfis remotos.
-///
-/// Formatos aceitos:
-/// - [{ "name": "...", "description": "..." }]
-/// - { "profiles": [{ "name": "...", "description": "..." }] }
-const PROFILE_LIST_URL: &str =
-    "https://raw.githubusercontent.com/example/process-simulator-profiles/main/profiles.json";
-
 type SharedSimulationManager = Mutex<SimulationManager>;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ProcessProfile {
-    name: String,
-    description: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProfileEnvelope {
-    profiles: Vec<ProcessProfile>,
-}
 
 #[derive(Debug, Clone, Serialize)]
 struct SimulationStatus {
@@ -186,37 +167,6 @@ fn stop_simulation(
     Ok(manager.status())
 }
 
-#[tauri::command]
-async fn fetch_profile_list() -> Result<Vec<ProcessProfile>, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("dc-auto-quest-process-simulator/0.1")
-        .build()
-        .map_err(|error| format!("falha ao criar cliente HTTP: {error}"))?;
-
-    let response = client.get(PROFILE_LIST_URL).send().await;
-    let response = match response {
-        Ok(response) if response.status().is_success() => response,
-        Ok(response) => {
-            eprintln!("lista remota indisponível: HTTP {}", response.status());
-            return Ok(default_profiles());
-        }
-        Err(error) => {
-            eprintln!("lista remota indisponível: {error}");
-            return Ok(default_profiles());
-        }
-    };
-
-    let body = response
-        .text()
-        .await
-        .map_err(|error| format!("falha ao ler resposta remota: {error}"))?;
-
-    parse_profiles(&body).or_else(|error| {
-        eprintln!("JSON remoto inválido; usando perfis locais: {error}");
-        Ok(default_profiles())
-    })
-}
-
 fn main() {
     // Intercepta o modo daemon antes de qualquer inicialização do Tauri/webview.
     if std::env::args().any(|arg| arg == IDLE_DAEMON_FLAG) {
@@ -229,11 +179,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .manage(SharedSimulationManager::default())
-        .invoke_handler(tauri::generate_handler![
-            start_simulation,
-            stop_simulation,
-            fetch_profile_list
-        ])
+        .invoke_handler(tauri::generate_handler![start_simulation, stop_simulation])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
                 if let Ok(mut manager) = window.state::<SharedSimulationManager>().lock() {
@@ -298,27 +244,4 @@ fn ensure_executable_permissions(path: &PathBuf) -> Result<(), String> {
 #[cfg(not(unix))]
 fn ensure_executable_permissions(_path: &PathBuf) -> Result<(), String> {
     Ok(())
-}
-
-fn parse_profiles(body: &str) -> Result<Vec<ProcessProfile>, serde_json::Error> {
-    serde_json::from_str::<Vec<ProcessProfile>>(body).or_else(|_| {
-        serde_json::from_str::<ProfileEnvelope>(body).map(|envelope| envelope.profiles)
-    })
-}
-
-fn default_profiles() -> Vec<ProcessProfile> {
-    vec![
-        ProcessProfile {
-            name: "processo_teste".to_string(),
-            description: "Perfil genérico para validação de coleta de processos.".to_string(),
-        },
-        ProcessProfile {
-            name: "telemetry_agent".to_string(),
-            description: "Simula um agente local usado por pipelines de telemetria.".to_string(),
-        },
-        ProcessProfile {
-            name: "audit_worker".to_string(),
-            description: "Processo ocioso para testes de auditoria e inventário.".to_string(),
-        },
-    ]
 }
