@@ -7,6 +7,7 @@ export default function GithubStarButton() {
             <a
                 href="https://github.com/MrLightful/powersync-tauri"
                 target="_blank"
+                rel="noreferrer"
             >
                 <Star size={16} className="mr-1" /> Star Github
             </a>

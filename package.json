@@ -1,6 +1,6 @@
 {
-    "name": "tauri-app",
-    "description": "A project template for creating a Tauri app with Vite, React, and Tailwind CSS.",
+    "name": "dc-auto-quest",
+    "description": "Desktop process simulator powered by public/gamelist.json.",
     "keywords": [
         "tauri",
         "vite",

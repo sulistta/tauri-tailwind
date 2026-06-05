@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import {
+    Activity,
+    AlertCircle,
+    CheckCircle2,
+    Database,
+    FileJson,
+    Loader2,
+    Play,
+    Search,
+    Square,
+    Terminal
+} from 'lucide-react'
 
 import './app/global.css'
 
@@ -106,6 +118,12 @@ function App() {
     }, [profiles, search])
 
     const visibleProfiles = filteredProfiles.slice(0, VISIBLE_PROFILE_LIMIT)
+    const validationMessage = validateTargetName(selectedName)
+    const canStart =
+        !isLoading &&
+        !status.active &&
+        selectedName.trim().length > 0 &&
+        validationMessage === null
 
     useEffect(() => {
         let isMounted = true
@@ -197,176 +215,154 @@ function App() {
     }
 
     return (
-        <main className="min-h-screen bg-slate-950 text-slate-100">
-            <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-6 py-8">
-                <header className="flex flex-col gap-3 border-b border-white/10 pb-6 md:flex-row md:items-end md:justify-between">
+        <main className="app-shell">
+            <header className="app-titlebar">
+                <div className="app-titleblock">
+                    <span className="app-mark">DC</span>
                     <div>
-                        <p className="text-sm font-medium uppercase tracking-[0.35em] text-blue-300">
-                            Local Security Audit Lab
-                        </p>
-                        <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
-                            Simulador de Processos por GameList
-                        </h1>
-                        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-                            Os candidatos agora vêm diretamente de{' '}
-                            <strong>public/gamelist.json</strong>. O app extrai
-                            o executável principal de cada jogo e usa esse nome
-                            para criar o processo idle.
+                        <h1>DC Auto Quest</h1>
+                        <p>
+                            Simulador de processos baseado em
+                            public/gamelist.json
                         </p>
                     </div>
+                </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 shadow-2xl shadow-blue-950/30">
-                        <span className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                            Status
-                        </span>
-                        <div className="mt-2 flex items-center gap-3">
-                            <span
-                                className={`h-3 w-3 rounded-full ${
-                                    status.active
-                                        ? 'bg-emerald-400 shadow-emerald-400/50'
-                                        : 'bg-slate-600'
-                                } shadow-lg`}
-                            />
-                            <strong
-                                className={
-                                    status.active
-                                        ? 'text-emerald-300'
-                                        : 'text-slate-300'
-                                }
-                            >
-                                {status.active ? 'Ativo' : 'Inativo'}
-                            </strong>
+                <div
+                    className={`status-pill ${status.active ? 'is-active' : ''}`}
+                >
+                    {status.active ? (
+                        <Activity aria-hidden="true" size={16} />
+                    ) : (
+                        <CheckCircle2 aria-hidden="true" size={16} />
+                    )}
+                    <span>{status.active ? 'Ativo' : 'Inativo'}</span>
+                </div>
+            </header>
+
+            <section className="workspace-grid">
+                <section
+                    className="profiles-panel"
+                    aria-labelledby="profiles-title"
+                >
+                    <div className="panel-header">
+                        <div>
+                            <h2 id="profiles-title">Perfis</h2>
+                            <p>{profiles.length} perfis carregados</p>
+                        </div>
+                        <div className="count-strip">
+                            {visibleProfiles.length} de{' '}
+                            {filteredProfiles.length}
                         </div>
                     </div>
-                </header>
 
-                <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-                    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-black/30">
-                        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                            <div>
-                                <h2 className="text-xl font-semibold">
-                                    Jogos em public/gamelist.json
-                                </h2>
-                                <p className="text-sm text-slate-400">
-                                    Selecione um jogo para usar o nome do
-                                    executável como processo simulado.
-                                </p>
-                            </div>
-                            <div className="min-w-64">
-                                <label
-                                    className="text-xs uppercase tracking-[0.25em] text-slate-500"
-                                    htmlFor="search"
-                                >
-                                    Buscar
-                                </label>
-                                <input
-                                    className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-blue-300/70 focus:ring-4 focus:ring-blue-500/10"
-                                    disabled={isLoading || status.active}
-                                    id="search"
-                                    onChange={(event) =>
-                                        setSearch(event.target.value)
-                                    }
-                                    placeholder="Nome, executável ou tema"
-                                    value={search}
-                                />
-                            </div>
-                        </div>
+                    <label className="search-box" htmlFor="search">
+                        <Search aria-hidden="true" size={17} />
+                        <input
+                            disabled={isLoading || status.active}
+                            id="search"
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Buscar por jogo, executavel ou tema"
+                            value={search}
+                        />
+                    </label>
 
-                        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                            <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-200">
-                                {profiles.length} perfis carregados
-                            </span>
-                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
-                                exibindo {visibleProfiles.length} de{' '}
-                                {filteredProfiles.length}
-                            </span>
-                        </div>
+                    <div className="source-row">
+                        <FileJson aria-hidden="true" size={16} />
+                        <span>public/gamelist.json</span>
+                    </div>
 
-                        <div className="grid max-h-[38rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
-                            {visibleProfiles.map((profile) => {
+                    <div className="profile-list" role="list">
+                        {visibleProfiles.length > 0 ? (
+                            visibleProfiles.map((profile) => {
                                 const isSelected =
                                     profile.id === selectedProfileId
 
                                 return (
                                     <button
-                                        className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300/60 hover:bg-blue-500/10 ${
-                                            isSelected
-                                                ? 'border-blue-300/70 bg-blue-500/15 shadow-lg shadow-blue-950/50'
-                                                : 'border-white/10 bg-white/[0.03]'
+                                        aria-pressed={isSelected}
+                                        className={`profile-row ${
+                                            isSelected ? 'is-selected' : ''
                                         }`}
                                         disabled={isLoading || status.active}
                                         key={profile.id}
                                         onClick={() => selectProfile(profile)}
                                         type="button"
                                     >
-                                        <div className="line-clamp-1 text-sm font-semibold text-slate-100">
-                                            {profile.gameName}
-                                        </div>
-                                        <div className="mt-2 break-all font-mono text-xs font-semibold text-blue-100">
-                                            {profile.processName}
-                                        </div>
-                                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">
-                                            {profile.description}
-                                        </p>
-                                        <div className="mt-3 flex flex-wrap gap-1">
+                                        <span className="profile-main">
+                                            <span className="profile-name">
+                                                {profile.gameName}
+                                            </span>
+                                            <span className="profile-process">
+                                                {profile.processName}
+                                            </span>
+                                        </span>
+                                        <span className="profile-tags">
                                             {profile.themes
                                                 .slice(0, 3)
                                                 .map((theme) => (
                                                     <span
-                                                        className="rounded-full bg-slate-800 px-2 py-0.5 text-[0.65rem] text-slate-300"
                                                         key={`${profile.id}-${theme}`}
                                                     >
                                                         {theme}
                                                     </span>
                                                 ))}
-                                        </div>
+                                        </span>
                                     </button>
                                 )
-                            })}
+                            })
+                        ) : (
+                            <div className="empty-state">
+                                Nenhum perfil encontrado para a busca atual.
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                <aside
+                    className="control-panel"
+                    aria-labelledby="control-title"
+                >
+                    <div className="panel-header">
+                        <div>
+                            <h2 id="control-title">Simulacao</h2>
+                            <p>Uma simulacao ativa por vez</p>
                         </div>
+                        <Terminal aria-hidden="true" size={20} />
                     </div>
 
-                    <aside className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-black/30">
-                        <h2 className="text-xl font-semibold">
-                            Controle da simulação
-                        </h2>
-                        <p className="mt-2 text-sm leading-6 text-slate-400">
-                            O backend copia o executável atual para
-                            /tmp/process_simulator, renomeia o arquivo e executa
-                            a cópia com a flag --idle-daemon.
-                        </p>
+                    <div className="detail-block">
+                        <InfoRow
+                            label="Jogo"
+                            value={selectedProfile?.gameName ?? 'Customizado'}
+                        />
+                        <InfoRow
+                            label="Executavel original"
+                            value={selectedProfile?.executableName ?? '-'}
+                            mono
+                        />
+                        <InfoRow
+                            label="Nome simulado"
+                            value={status.target_name ?? (selectedName || '-')}
+                            mono
+                        />
+                        <InfoRow
+                            label="PID"
+                            value={status.pid?.toString() ?? '-'}
+                            mono
+                        />
+                        <InfoRow
+                            label="Binario temporario"
+                            value={status.executable_path ?? '-'}
+                            mono
+                        />
+                    </div>
 
-                        <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                            <InfoRow
-                                label="Jogo"
-                                value={
-                                    selectedProfile?.gameName ?? 'Customizado'
-                                }
-                            />
-                            <InfoRow
-                                label="Executável original"
-                                value={selectedProfile?.executableName ?? '—'}
-                                mono
-                            />
-                            <InfoRow
-                                label="PID"
-                                value={status.pid?.toString() ?? '—'}
-                            />
-                            <InfoRow
-                                label="Binário temporário"
-                                value={status.executable_path ?? '—'}
-                                mono
-                            />
-                        </div>
-
-                        <label
-                            className="mt-5 block text-sm font-medium text-slate-300"
-                            htmlFor="target-name"
-                        >
+                    <div className="field-group">
+                        <label htmlFor="target-name">
                             Nome do processo a simular
                         </label>
                         <input
-                            className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-blue-300/70 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
                             disabled={isLoading || status.active}
                             id="target-name"
                             onChange={(event) => {
@@ -377,50 +373,74 @@ function App() {
                             spellCheck={false}
                             value={selectedName}
                         />
-                        <p className="mt-2 text-xs text-slate-500">
-                            Nomes vindos do gamelist são normalizados para
-                            letras, números, ponto, hífen e underscore.
+                        <p
+                            className={
+                                validationMessage ? 'field-error' : 'field-help'
+                            }
+                        >
+                            {validationMessage ??
+                                'Use letras, numeros, ponto, hifen ou underscore.'}
                         </p>
+                    </div>
 
-                        <div className="mt-6 grid gap-3">
-                            <button
-                                className="rounded-2xl bg-blue-500 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-950/50 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none"
-                                disabled={
-                                    isLoading ||
-                                    status.active ||
-                                    selectedName.trim().length === 0
-                                }
-                                onClick={startSimulation}
-                                type="button"
-                            >
+                    <div className="actions-row">
+                        <button
+                            className="primary-action"
+                            disabled={!canStart}
+                            onClick={startSimulation}
+                            type="button"
+                        >
+                            {isLoading && !status.active ? (
+                                <Loader2
+                                    aria-hidden="true"
+                                    className="spin"
+                                    size={17}
+                                />
+                            ) : (
+                                <Play aria-hidden="true" size={17} />
+                            )}
+                            <span>
                                 {isLoading && !status.active
-                                    ? 'Iniciando...'
-                                    : 'Iniciar Simulação'}
-                            </button>
-                            <button
-                                className="rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-3 font-semibold text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-slate-500"
-                                disabled={isLoading || !status.active}
-                                onClick={stopSimulation}
-                                type="button"
-                            >
+                                    ? 'Iniciando'
+                                    : 'Iniciar'}
+                            </span>
+                        </button>
+                        <button
+                            className="danger-action"
+                            disabled={isLoading || !status.active}
+                            onClick={stopSimulation}
+                            type="button"
+                        >
+                            {isLoading && status.active ? (
+                                <Loader2
+                                    aria-hidden="true"
+                                    className="spin"
+                                    size={17}
+                                />
+                            ) : (
+                                <Square aria-hidden="true" size={15} />
+                            )}
+                            <span>
                                 {isLoading && status.active
-                                    ? 'Parando...'
+                                    ? 'Parando'
                                     : 'Parar'}
-                            </button>
-                        </div>
+                            </span>
+                        </button>
+                    </div>
 
-                        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-                            {message}
-                        </div>
+                    <div className="message-block">
+                        <Database aria-hidden="true" size={17} />
+                        <span>{message}</span>
+                    </div>
 
-                        {error ? (
-                            <div className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">
-                                {error}
-                            </div>
-                        ) : null}
-                    </aside>
-                </section>
-            </div>
+                    {error ? (
+                        <div className="error-block">
+                            <AlertCircle aria-hidden="true" size={17} />
+                            <span>{error}</span>
+                        </div>
+                    ) : null}
+                </aside>
+            </section>
         </main>
     )
 }
@@ -499,6 +519,33 @@ function toSafeProcessName(rawName: string, gameId: string) {
     return normalized || `game_${gameId}`.slice(0, 80)
 }
 
+function validateTargetName(targetName: string) {
+    const trimmed = targetName.trim()
+
+    if (!trimmed) {
+        return 'Informe um nome de processo.'
+    }
+
+    if (trimmed.length > 80) {
+        return 'Use no maximo 80 caracteres.'
+    }
+
+    if (
+        trimmed.includes('/') ||
+        trimmed.includes('\\') ||
+        trimmed === '.' ||
+        trimmed === '..'
+    ) {
+        return 'Use apenas um nome de arquivo.'
+    }
+
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+        return 'Use apenas letras, numeros, ponto, hifen ou underscore.'
+    }
+
+    return null
+}
+
 function InfoRow({
     label,
     mono = false,
@@ -509,15 +556,9 @@ function InfoRow({
     value: React.ReactNode
 }) {
     return (
-        <div className="grid gap-1">
-            <span className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                {label}
-            </span>
-            <span
-                className={`${mono ? 'font-mono text-xs' : 'text-sm'} break-words text-slate-200`}
-            >
-                {value}
-            </span>
+        <div className="info-row">
+            <span>{label}</span>
+            <strong className={mono ? 'is-mono' : undefined}>{value}</strong>
         </div>
     )
 }
